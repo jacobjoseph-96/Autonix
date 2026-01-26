@@ -33,7 +33,7 @@ test_job:
 
 deploy_job:
   stage: deploy
-  needs: ["test_job"]
+  needs: ["test_job", "build_job"]
   script:
     - mkdir -p release
     - cp build/UI/adas_simulation release/
