@@ -17,8 +17,8 @@ build_job:
   stage: build
   script:
     # Build using the environment defined in flake.nix
-    - nix develop --command cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-    - nix develop --command cmake --build build
+    - nix develop --extra-experimental-features "nix-command flakes" --command cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+    - nix develop --extra-experimental-features "nix-command flakes" --command cmake --build build
   artifacts:
     paths:
       - build/
@@ -29,7 +29,7 @@ test_job:
   needs: ["build_job"]
   script:
     # Run tests using CTest
-    - nix develop --command ctest --test-dir build --output-on-failure --no-tests=error
+    - nix develop --extra-experimental-features "nix-command flakes" --command ctest --test-dir build --output-on-failure --no-tests=error
 
 deploy_job:
   stage: deploy
