@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scenarios>
+    <!-- Basic distance test: Car at origin, sign 50m ahead -->
+    <Scenario name="BasicDistance">
+        <Car x="0" y="0" theta="0"/>
+        <Sign type="Stop" x="0" y="50" lane="1"/>
+        <ExpectedDistance>50.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- 3-4-5 Triangle test -->
+    <Scenario name="PythagoreanTriangle">
+        <Car x="0" y="0" theta="0"/>
+        <Sign type="Yield" x="3" y="4" lane="1"/>
+        <ExpectedDistance>5.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- Horizontal distance -->
+    <Scenario name="HorizontalDistance">
+        <Car x="10" y="5" theta="0"/>
+        <Sign type="SpeedLimit" x="60" y="5" lane="1"/>
+        <ExpectedDistance>50.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- Diagonal distance with negative coordinates -->
+    <Scenario name="NegativeCoordinates">
+        <Car x="-5" y="-5" theta="0"/>
+        <Sign type="Stop" x="5" y="5" lane="2"/>
+        <!-- sqrt(10^2 + 10^2) = sqrt(200) ≈ 14.142 -->
+        <ExpectedDistance>14.142135623730951</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- Zero distance (car at sign location) -->
+    <Scenario name="ZeroDistance">
+        <Car x="25" y="25" theta="0"/>
+        <Sign type="Yield" x="25" y="25" lane="1"/>
+        <ExpectedDistance>0.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- Multiple signs - distance to first sign -->
+    <Scenario name="MultipleSigns">
+        <Car x="0" y="0" theta="0"/>
+        <Sign type="Stop" x="30" y="40" lane="1"/>
+        <Sign type="Yield" x="60" y="80" lane="2"/>
+        <!-- First sign: sqrt(30^2 + 40^2) = 50 -->
+        <ExpectedDistance>50.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+
+    <!-- Large distance -->
+    <Scenario name="LargeDistance">
+        <Car x="0" y="0" theta="0"/>
+        <Sign type="SpeedLimit" x="300" y="400" lane="1"/>
+        <ExpectedDistance>500.0</ExpectedDistance>
+        <Tolerance>0.01</Tolerance>
+    </Scenario>
+
+    <!-- Real-world scenario: Highway approach -->
+    <Scenario name="HighwayApproach">
+        <Car x="100" y="3.5" theta="0"/>
+        <Sign type="SpeedLimit" x="200" y="3.5" lane="1"/>
+        <ExpectedDistance>100.0</ExpectedDistance>
+        <Tolerance>0.001</Tolerance>
+    </Scenario>
+</Scenarios>

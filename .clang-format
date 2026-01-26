@@ -1,0 +1,111 @@
+# ADAS Project Clang Format Configuration
+# Allman brace style with aligned comments
+
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Allman brace style - opening brace on its own line
+BreakBeforeBraces: Allman
+
+# Indentation
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+IndentCaseLabels: false
+NamespaceIndentation: None
+
+# Column limit
+ColumnLimit: 80
+
+# Align comments
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 1
+
+# Align consecutive assignments and declarations
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: true
+
+# Pointer and reference alignment
+PointerAlignment: Right
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# Include sorting
+SortIncludes: true
+IncludeBlocks: Preserve
+
+# Line breaks
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Inline
+
+# Always break after return type for top-level definitions
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+
+# Constructor initializer style
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
+
+# Access modifier indentation
+AccessModifierOffset: -2
+
+# Empty lines
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Bin packing
+BinPackArguments: false
+BinPackParameters: false
+
+# Penalty settings for line breaking decisions
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyBreakTemplateDeclaration: 10
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# C++ specific
+Cpp11BracedListStyle: true
+Standard: c++20
+
+# Fix namespace closing comments
+FixNamespaceComments: true
+
+# Attribute macro handling
+AttributeMacros: ['__capability']
+
+# Short namespace handling
+CompactNamespaces: false
+
+# Sort using declarations
+SortUsingDeclarations: true
+...

@@ -1,0 +1,42 @@
+# CMake
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+*.rules
+
+# Qt
+*.user
+*.user.*
+*.qmake.stash
+*.qmlc
+*.jsc
+*.moc
+
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.~*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nix
+result
+
+# Deployment
+release/
+
+# Testing
+*.xml
+!tests/*.xml
+
+# Editors
+compile_commands.json
+.cache/
+.vscode/

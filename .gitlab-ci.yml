@@ -1,0 +1,44 @@
+image: nixos/nix:latest
+
+variables:
+  # Enable Nix Flakes
+  NIX_EXPERIMENTAL_FEATURES: nix-command flakes
+  # Ensure clean environment
+  GIT_STRATEGY: clone
+
+stages:
+  - build
+  - test
+  - deploy
+
+# ... (cache section remains) ...
+
+build_job:
+  stage: build
+  script:
+    # Build using the environment defined in flake.nix
+    - nix develop --command cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+    - nix develop --command cmake --build build
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+
+test_job:
+  stage: test
+  needs: ["build_job"]
+  script:
+    # Run tests using CTest
+    - nix develop --command ctest --test-dir build --output-on-failure --no-tests=error
+
+deploy_job:
+  stage: deploy
+  needs: ["test_job"]
+  script:
+    - mkdir -p release
+    - cp build/UI/adas_simulation release/
+    - echo "Deployment complete - executable is in release/"
+  artifacts:
+    paths:
+      - release/
+    expire_in: 1 week
