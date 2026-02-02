@@ -6,7 +6,9 @@
 #define ADAS_UI_MAIN_WINDOW_HPP
 
 #include "traffic_logic.hpp"
+#include <QCheckBox>
 #include <QDockWidget>
+#include <QKeyEvent>
 #include <QMainWindow>
 #include <QTimer>
 #include <QToolBar>
@@ -18,6 +20,10 @@
 #include "detection_overlay.hpp"
 #include "diagnostic_logs.hpp"
 #include "ego_vehicle.hpp"
+#include "gap_analyzer.hpp"
+#include "lane_change_controller.hpp"
+#include "npc_vehicle.hpp"
+#include "pedestrian.hpp"
 #include "perception_filter.hpp"
 #include "perspective_view.hpp"
 #include "road_segment.hpp"
@@ -56,6 +62,14 @@ private slots:
   //!
   void onSimulationTick();
 
+  //! @brief Handle NPC toggle checkbox
+  //!
+  void onNpcToggle(int state);
+
+  //! @brief Handle Pedestrians toggle checkbox
+  //!
+  void onPedestriansToggle(int state);
+
 private:
   // UI Components (unique_ptr for smart pointer management)
   std::unique_ptr<QDockWidget> perspective_dock_;
@@ -78,6 +92,14 @@ private:
   // Perception
   perception::PerceptionFilter perception_filter_;
 
+  // Lane change controller
+  core::LaneChangeController lane_change_controller_;
+
+  // NPC vehicles
+  std::vector<core::NPCVehicle> npc_vehicles_;
+  bool npcs_enabled_{false};
+  QCheckBox *npc_toggle_{nullptr};
+
   // Random engine (MISRA compliant - no rand())
   std::mt19937 random_engine_;
 
@@ -99,14 +121,31 @@ private:
   void initializeWorld();
   void generateTrafficSigns();
   void generateTrafficLights();
+  void spawnNPCs();
+  void updateNPCs();
+  void spawnPedestrians();
+  void updatePedestrians();
   void updatePerception();
   void updateTrafficLights();
   void updateTrafficLightDetections();
+  void updateLaneChange();
+  void requestLaneChange(core::LaneChangeDirection direction);
   [[nodiscard]] bool shouldStopForLight() const;
   [[nodiscard]] bool shouldStopForSign();
+  [[nodiscard]] bool shouldEmergencyBrake() const;
 
   // Toolbar
   std::unique_ptr<QToolBar> tool_bar_;
+
+  // Pedestrians
+  std::vector<core::Pedestrian> pedestrians_;
+  bool pedestrians_enabled_{false};
+  QCheckBox *pedestrians_toggle_{nullptr};
+
+protected:
+  //! @brief Handle key press events for lane change input
+  //!
+  void keyPressEvent(QKeyEvent *event) override;
 };
 
 } // namespace ui

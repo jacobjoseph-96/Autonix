@@ -475,5 +475,181 @@ QColor PerspectiveView::getSignColor(core::TrafficSignType type) const
   }
 }
 
+void PerspectiveView::updateTurnSignal(core::TurnSignalState state)
+{
+  current_signal_state_ = state;
+
+  // Update blink counter (blink every 15 frames at 60 FPS = ~4 Hz blink)
+  blink_counter_++;
+  if (blink_counter_ >= 15)
+  {
+    blink_counter_ = 0;
+    signal_blink_on_ = !signal_blink_on_;
+  }
+
+  // Remove existing signal items
+  if (left_signal_item_ != nullptr)
+  {
+    scene_->removeItem(left_signal_item_);
+    delete left_signal_item_;
+    left_signal_item_ = nullptr;
+  }
+  if (right_signal_item_ != nullptr)
+  {
+    scene_->removeItem(right_signal_item_);
+    delete right_signal_item_;
+    right_signal_item_ = nullptr;
+  }
+
+  // If signal is off, don't draw anything
+  if (state == core::TurnSignalState::Off)
+  {
+    return;
+  }
+
+  // Only draw when blink is on
+  if (!signal_blink_on_)
+  {
+    return;
+  }
+
+  const QColor signal_color(255, 165, 0); // Orange
+
+  // Create arrow polygons relative to vehicle
+  QPolygonF left_arrow;
+  left_arrow << QPointF(-6, 0) << QPointF(-3, -2) << QPointF(-3, -1)
+             << QPointF(-1, -1) << QPointF(-1, 1) << QPointF(-3, 1)
+             << QPointF(-3, 2);
+
+  QPolygonF right_arrow;
+  right_arrow << QPointF(6, 0) << QPointF(3, -2) << QPointF(3, -1)
+              << QPointF(1, -1) << QPointF(1, 1) << QPointF(3, 1)
+              << QPointF(3, 2);
+
+  if (state == core::TurnSignalState::Left ||
+      state == core::TurnSignalState::Hazard)
+  {
+    left_signal_item_ =
+        scene_->addPolygon(left_arrow, QPen(Qt::NoPen), QBrush(signal_color));
+    left_signal_item_->setZValue(110);
+    // Position relative to vehicle
+    if (vehicle_item_ != nullptr)
+    {
+      left_signal_item_->setTransform(vehicle_item_->transform());
+    }
+  }
+
+  if (state == core::TurnSignalState::Right ||
+      state == core::TurnSignalState::Hazard)
+  {
+    right_signal_item_ =
+        scene_->addPolygon(right_arrow, QPen(Qt::NoPen), QBrush(signal_color));
+    right_signal_item_->setZValue(110);
+    // Position relative to vehicle
+    if (vehicle_item_ != nullptr)
+    {
+      right_signal_item_->setTransform(vehicle_item_->transform());
+    }
+  }
+}
+
+void PerspectiveView::updateNPCVehicles(
+    const std::vector<core::NPCVehicle>& npcs)
+{
+  // Clear existing NPC items
+  for (auto *item : npc_items_)
+  {
+    if (item != nullptr)
+    {
+      scene_->removeItem(item);
+      delete item;
+    }
+  }
+  npc_items_.clear();
+
+  // Draw each NPC
+  for (const auto& npc : npcs)
+  {
+    // Create NPC polygon pointing upward (vertical road orientation)
+    const double half_length = core::NPCVehicle::kLength / 2.0;
+    const double half_width = core::NPCVehicle::kWidth / 2.0;
+
+    // Polygon pointing up (negative Y direction in screen coords)
+    QPolygonF npc_poly;
+    npc_poly << QPointF(0, -half_length)              // Front point (top)
+             << QPointF(-half_width, half_length / 2) // Back left
+             << QPointF(-half_width, half_length)     // Rear left
+             << QPointF(half_width, half_length)      // Rear right
+             << QPointF(half_width, half_length / 2); // Back right
+
+    // Create graphics item with green color for NPCs
+    auto *item =
+        scene_->addPolygon(npc_poly,
+                           QPen(QColor(20, 100, 40), 0.2), // Dark green border
+                           QBrush(QColor(40, 180, 80, 200))); // Green fill
+
+    // Position NPC - X is horizontal (lane), Y is vertical (progress along
+    // road)
+    const double scaled_x =
+        npc.getY() * scale_factor_ * zoom_level_; // Lane position
+    const double scaled_y =
+        -npc.getX() * scale_factor_ * zoom_level_; // Road progress
+
+    QTransform transform;
+    transform.translate(scaled_x, scaled_y);
+    transform.scale(scale_factor_ * zoom_level_, scale_factor_ * zoom_level_);
+    item->setTransform(transform);
+    item->setZValue(80); // Below ego vehicle (100)
+
+    npc_items_.push_back(item);
+  }
+}
+
+void PerspectiveView::updatePedestrians(
+    const std::vector<core::Pedestrian>& pedestrians)
+{
+  // Clear previous pedestrian items
+  for (auto *item : pedestrian_items_)
+  {
+    scene_->removeItem(item);
+    delete item;
+  }
+  pedestrian_items_.clear();
+
+  if (pedestrians.empty())
+  {
+    return;
+  }
+
+  // Create pedestrian items (orange circles)
+  for (const auto& pedestrian : pedestrians)
+  {
+    constexpr double kPedestrianRadius = 0.4;
+
+    // Create ellipse for pedestrian
+    auto *item =
+        scene_->addEllipse(-kPedestrianRadius,
+                           -kPedestrianRadius,
+                           kPedestrianRadius * 2.0,
+                           kPedestrianRadius * 2.0,
+                           QPen(QColor(180, 80, 0), 0.15), // Dark orange border
+                           QBrush(QColor(255, 140, 0, 200))); // Orange fill
+
+    // Position pedestrian - X is horizontal (lane), Y is vertical (progress)
+    const double scaled_x =
+        pedestrian.getY() * scale_factor_ * zoom_level_; // Lateral position
+    const double scaled_y =
+        -pedestrian.getX() * scale_factor_ * zoom_level_; // Road progress
+
+    QTransform transform;
+    transform.translate(scaled_x, scaled_y);
+    transform.scale(scale_factor_ * zoom_level_, scale_factor_ * zoom_level_);
+    item->setTransform(transform);
+    item->setZValue(90); // Above NPCs (80), below ego (100)
+
+    pedestrian_items_.push_back(item);
+  }
+}
+
 } // namespace ui
 } // namespace adas

@@ -68,6 +68,58 @@ enum class TrafficLightState : std::uint8_t
   Green = 2U
 };
 
+//! @brief Turn signal state enumeration
+//! @details AUTOSAR compliant enum class with explicit underlying type
+//!
+enum class TurnSignalState : std::uint8_t
+{
+  Off = 0U,
+  Left = 1U,
+  Right = 2U,
+  Hazard = 3U
+};
+
+//! @brief Lane change direction enumeration
+//! @details AUTOSAR compliant enum class with explicit underlying type
+//!
+enum class LaneChangeDirection : std::uint8_t
+{
+  None = 0U,
+  Left = 1U,
+  Right = 2U
+};
+
+//! @brief Result of gap analysis for lane change
+//!
+struct GapAnalysisResult
+{
+  bool is_safe{false};           ///< Whether lane change is safe
+  double front_gap{0.0};         ///< Distance to vehicle ahead in target lane
+  double rear_gap{0.0};          ///< Distance to vehicle behind in target lane
+  double min_safe_gap{10.0};     ///< Minimum required gap
+  bool target_lane_exists{true}; ///< Whether target lane exists
+
+  constexpr GapAnalysisResult() noexcept = default;
+
+  constexpr GapAnalysisResult(bool safe,
+                              double front,
+                              double rear,
+                              double min_gap,
+                              bool exists) noexcept
+      : is_safe(safe), front_gap(front), rear_gap(rear), min_safe_gap(min_gap),
+        target_lane_exists(exists)
+  {
+  }
+
+  //! @brief Check if gap analysis result indicates safe lane change
+  //! @return true if lane change is safe
+  //!
+  [[nodiscard]] constexpr bool isSafe() const noexcept
+  {
+    return is_safe && target_lane_exists;
+  }
+};
+
 //! @brief Traffic light identifier type
 //!
 using TrafficLightId = std::uint32_t;

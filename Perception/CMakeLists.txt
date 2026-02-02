@@ -3,8 +3,10 @@
 add_library(adas_perception STATIC
     include/perception_filter.hpp
     include/safe_distance_calculator.hpp
+    include/gap_analyzer.hpp
     src/perception_filter.cpp
     src/safe_distance_calculator.cpp
+    src/gap_analyzer.cpp
 )
 
 target_include_directories(adas_perception PUBLIC

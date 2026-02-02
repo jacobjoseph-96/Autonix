@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
       detection_overlay_(std::make_unique<DetectionOverlay>()),
       diagnostic_logs_(std::make_unique<DiagnosticLogs>()),
       simulation_timer_(std::make_unique<QTimer>(this)),
-      ego_vehicle_(core::Coordinate{0.0, 5.0, 0.0}, 1U),
+      ego_vehicle_(core::Coordinate{0.0, 7.5, 0.0}, 1U),
       road_segment_(1U, -10.0, 150.0), perception_filter_(),
       random_engine_(static_cast<std::uint32_t>(
           std::chrono::steady_clock::now().time_since_epoch().count()))
@@ -125,6 +125,39 @@ void MainWindow::setupToolBar()
   tool_bar_->addWidget(start_btn);
   tool_bar_->addWidget(stop_btn);
   tool_bar_->addWidget(restart_btn);
+
+  // NPC toggle checkbox
+  tool_bar_->addSeparator();
+  npc_toggle_ = new QCheckBox("Enable NPCs");
+  npc_toggle_->setStyleSheet("QCheckBox {"
+                             "  color: white;"
+                             "  font-weight: bold;"
+                             "  spacing: 8px;"
+                             "}"
+                             "QCheckBox::indicator {"
+                             "  width: 18px;"
+                             "  height: 18px;"
+                             "}");
+  connect(
+      npc_toggle_, &QCheckBox::stateChanged, this, &MainWindow::onNpcToggle);
+  tool_bar_->addWidget(npc_toggle_);
+
+  // Pedestrian toggle checkbox
+  pedestrians_toggle_ = new QCheckBox("Enable Pedestrians");
+  pedestrians_toggle_->setStyleSheet("QCheckBox {"
+                                     "  color: white;"
+                                     "  font-weight: bold;"
+                                     "  spacing: 8px;"
+                                     "}"
+                                     "QCheckBox::indicator {"
+                                     "  width: 18px;"
+                                     "  height: 18px;"
+                                     "}");
+  connect(pedestrians_toggle_,
+          &QCheckBox::stateChanged,
+          this,
+          &MainWindow::onPedestriansToggle);
+  tool_bar_->addWidget(pedestrians_toggle_);
 
   addToolBar(Qt::TopToolBarArea, tool_bar_.get());
 }
@@ -283,7 +316,7 @@ void MainWindow::resetSimulation()
 {
   stopSimulation();
 
-  ego_vehicle_ = core::EgoVehicle(core::Coordinate{0.0, 5.0, 0.0}, 1U);
+  ego_vehicle_ = core::EgoVehicle(core::Coordinate{0.0, 7.5, 0.0}, 1U);
   simulation_time_ = 0.0;
 
   // Re-seed random engine
@@ -297,9 +330,20 @@ void MainWindow::resetSimulation()
   perspective_view_->updateTrafficLights(traffic_lights_,
                                          ego_vehicle_.getLaneId());
   perspective_view_->updateEgoVehicle(ego_vehicle_);
-  perspective_view_->updateEgoVehicle(ego_vehicle_);
   detection_overlay_->clear();
   stop_sign_state_ = core::StopSignState{};
+
+  // Reset NPCs if enabled
+  if (npcs_enabled_)
+  {
+    spawnNPCs();
+  }
+
+  // Reset pedestrians if enabled
+  if (pedestrians_enabled_)
+  {
+    spawnPedestrians();
+  }
 
   diagnostic_logs_->logInfo("Simulation reset");
   statusBar()->showMessage("Ready");
@@ -315,7 +359,7 @@ void MainWindow::onSimulationTick()
   // Check if vehicle should stop for red light or stop sign
   const bool should_stop_light = shouldStopForLight();
   const bool should_stop_sign = shouldStopForSign();
-  const bool should_stop = should_stop_light || should_stop_sign;
+  bool should_stop = should_stop_light || should_stop_sign;
 
   if (should_stop_light && !was_stopped_for_light_)
   {
@@ -330,16 +374,72 @@ void MainWindow::onSimulationTick()
     was_stopped_for_light_ = false;
   }
 
+  // Check for NPC vehicles ahead in the same lane
+  double target_speed = 5.0;                     // Default 5 m/s = 18 km/h
+  constexpr double kSafeFollowingDistance = 8.0; // meters
+  constexpr double kMinFollowingDistance =
+      3.0; // Stop completely at this distance
+
+  if (npcs_enabled_)
+  {
+    for (const auto& npc : npc_vehicles_)
+    {
+      // Check if NPC is in the same lane
+      if (npc.getLaneId() == ego_vehicle_.getLaneId())
+      {
+        const double distance = npc.getX() - ego_vehicle_.getX();
+
+        // Only consider NPCs ahead of us
+        if (distance > 0.0 && distance < kSafeFollowingDistance)
+        {
+          if (distance < kMinFollowingDistance)
+          {
+            // Too close - stop completely
+            should_stop = true;
+            diagnostic_logs_->logWarning(
+                QString("Stopping behind NPC - distance: %1m")
+                    .arg(distance, 0, 'f', 1));
+          }
+          else
+          {
+            // Slow down proportionally to distance
+            const double speed_factor =
+                (distance - kMinFollowingDistance) /
+                (kSafeFollowingDistance - kMinFollowingDistance);
+            target_speed =
+                std::min(target_speed, npc.getSpeed() * speed_factor);
+          }
+        }
+      }
+    }
+  }
+
+  // Emergency braking for pedestrians
+  if (shouldEmergencyBrake())
+  {
+    should_stop = true;
+    diagnostic_logs_->logWarning("EMERGENCY BRAKE - Pedestrian detected!");
+  }
+
   if (should_stop)
   {
-    ego_vehicle_.setSpeed(0.0); // Stop for red light or stop sign
+    ego_vehicle_.setSpeed(0.0);
   }
   else
   {
-    ego_vehicle_.setSpeed(5.0); // 5 m/s = 18 km/h
+    ego_vehicle_.setSpeed(target_speed);
   }
 
   ego_vehicle_.update(kDeltaTime);
+
+  // Update lane change
+  updateLaneChange();
+
+  // Update NPC vehicles
+  updateNPCs();
+
+  // Update pedestrians
+  updatePedestrians();
 
   // Update perception
   updatePerception();
@@ -552,6 +652,384 @@ bool MainWindow::shouldStopForSign()
   }
 
   return should_stop;
+}
+
+void MainWindow::updateLaneChange()
+{
+  // Update lane change controller
+  lane_change_controller_.update(ego_vehicle_, road_segment_, kDeltaTime);
+
+  // Update turn signal visualization
+  perspective_view_->updateTurnSignal(ego_vehicle_.getTurnSignal());
+}
+
+void MainWindow::requestLaneChange(core::LaneChangeDirection direction)
+{
+  if (!is_running_)
+  {
+    return;
+  }
+
+  // Calculate target lane for gap analysis
+  const core::LaneId current_lane = ego_vehicle_.getLaneId();
+  core::LaneId target_lane = current_lane;
+  if (direction == core::LaneChangeDirection::Left)
+  {
+    target_lane = current_lane + 1U;
+  }
+  else if (direction == core::LaneChangeDirection::Right)
+  {
+    target_lane = (current_lane > 1U) ? current_lane - 1U : 1U;
+  }
+
+  // Check for pedestrians in the lane change path
+  bool pedestrian_blocking = false;
+  if (pedestrians_enabled_)
+  {
+    constexpr double kPedestrianCheckDistance = 15.0;
+    const auto target_boundary = road_segment_.getLaneBoundary(target_lane);
+
+    for (const auto& pedestrian : pedestrians_)
+    {
+      if (!pedestrian.isCrossing())
+      {
+        continue;
+      }
+
+      // Check if pedestrian is ahead within check distance
+      const double distance_x = pedestrian.getX() - ego_vehicle_.getX();
+      if (distance_x > 0.0 && distance_x < kPedestrianCheckDistance)
+      {
+        // Check if pedestrian is in or crossing into target lane
+        if (target_boundary.has_value())
+        {
+          const double lane_center = target_boundary->centerY();
+          const double lane_half_width = 1.5;
+          if (std::abs(pedestrian.getY() - lane_center) < lane_half_width)
+          {
+            pedestrian_blocking = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  if (pedestrian_blocking)
+  {
+    diagnostic_logs_->logWarning(
+        "Lane change rejected - Pedestrian crossing in target lane");
+    return;
+  }
+
+  // Perform gap analysis
+  // Convert NPC vehicles to EgoVehicle format for gap analysis
+  std::vector<core::EgoVehicle> gap_check_vehicles;
+  for (const auto& npc : npc_vehicles_)
+  {
+    core::EgoVehicle vehicle(core::Coordinate{npc.getX(), npc.getY()},
+                             npc.getLaneId());
+    vehicle.setSpeed(npc.getSpeed());
+    gap_check_vehicles.push_back(vehicle);
+  }
+  const auto gap_result = perception::GapAnalyzer::analyze(
+      ego_vehicle_, target_lane, gap_check_vehicles);
+
+  // Request lane change
+  const bool accepted = lane_change_controller_.requestLaneChange(
+      ego_vehicle_, direction, road_segment_, gap_result);
+
+  if (accepted)
+  {
+    diagnostic_logs_->logInfo(
+        QString("Lane change %1 initiated")
+            .arg(direction == core::LaneChangeDirection::Left ? "LEFT"
+                                                              : "RIGHT"));
+  }
+  else
+  {
+    // Check why it was rejected
+    if (!gap_result.is_safe)
+    {
+      diagnostic_logs_->logWarning(
+          QString("Lane change rejected - Gap not safe (front: %1m, rear: %2m)")
+              .arg(gap_result.front_gap, 0, 'f', 1)
+              .arg(gap_result.rear_gap, 0, 'f', 1));
+    }
+    else if (lane_change_controller_.isActive())
+    {
+      diagnostic_logs_->logWarning(
+          "Lane change rejected - Already in progress");
+    }
+    else
+    {
+      diagnostic_logs_->logWarning(
+          "Lane change rejected - Invalid target lane");
+    }
+  }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+  switch (event->key())
+  {
+  case Qt::Key_Left:
+  case Qt::Key_A:
+    requestLaneChange(core::LaneChangeDirection::Left);
+    break;
+
+  case Qt::Key_Right:
+  case Qt::Key_D:
+    requestLaneChange(core::LaneChangeDirection::Right);
+    break;
+
+  case Qt::Key_Escape:
+    // Cancel lane change
+    if (lane_change_controller_.isActive())
+    {
+      lane_change_controller_.cancel(ego_vehicle_);
+      diagnostic_logs_->logInfo("Lane change cancelled");
+    }
+    break;
+
+  default:
+    QMainWindow::keyPressEvent(event);
+    break;
+  }
+}
+
+void MainWindow::onNpcToggle(int state)
+{
+  npcs_enabled_ = (state == Qt::Checked);
+
+  if (npcs_enabled_)
+  {
+    spawnNPCs();
+    diagnostic_logs_->logInfo("NPCs enabled - spawned vehicles");
+  }
+  else
+  {
+    npc_vehicles_.clear();
+    perspective_view_->updateNPCVehicles({});
+    diagnostic_logs_->logInfo("NPCs disabled");
+  }
+}
+
+void MainWindow::spawnNPCs()
+{
+  npc_vehicles_.clear();
+
+  // Random distributions for spawn positions
+  std::uniform_real_distribution<double> x_dist(10.0, 80.0);
+  std::uniform_real_distribution<double> speed_dist(2.5, 5.5);
+  std::uniform_int_distribution<core::LaneId> lane_dist(1U, 3U);
+
+  constexpr double kMinSpawnDistance = 10.0; // Minimum distance between NPCs
+  constexpr int kMaxAttempts = 20;           // Maximum spawn attempts per NPC
+
+  // Spawn 4 NPCs at random positions, avoiding overlaps
+  for (std::uint32_t id = 1U; id <= 4U; ++id)
+  {
+    bool valid_position = false;
+    double x = 0.0;
+    core::LaneId lane = 1U;
+
+    for (int attempt = 0; attempt < kMaxAttempts && !valid_position; ++attempt)
+    {
+      x = x_dist(random_engine_);
+      lane = lane_dist(random_engine_);
+
+      // Check distance from existing NPCs in the same lane
+      valid_position = true;
+      for (const auto& existing_npc : npc_vehicles_)
+      {
+        if (existing_npc.getLaneId() == lane)
+        {
+          const double distance = std::abs(existing_npc.getX() - x);
+          if (distance < kMinSpawnDistance)
+          {
+            valid_position = false;
+            break;
+          }
+        }
+      }
+    }
+
+    // Only add if valid position found (otherwise skip this NPC)
+    if (valid_position)
+    {
+      const double speed = speed_dist(random_engine_);
+      npc_vehicles_.emplace_back(id, x, lane, speed);
+    }
+  }
+
+  // Set initial Y positions based on lane centers
+  for (auto& npc : npc_vehicles_)
+  {
+    const auto boundary = road_segment_.getLaneBoundary(npc.getLaneId());
+    if (boundary.has_value())
+    {
+      npc.setY(boundary->centerY());
+    }
+  }
+}
+
+void MainWindow::updateNPCs()
+{
+  if (!npcs_enabled_ || npc_vehicles_.empty())
+  {
+    return;
+  }
+
+  // Sort NPCs by X position for following distance calculation
+  std::vector<std::pair<double, core::LaneId>> positions;
+  positions.reserve(npc_vehicles_.size() + 1U);
+
+  // Add ego vehicle to positions
+  positions.emplace_back(ego_vehicle_.getX(), ego_vehicle_.getLaneId());
+
+  for (const auto& npc : npc_vehicles_)
+  {
+    positions.emplace_back(npc.getX(), npc.getLaneId());
+  }
+
+  // Update each NPC
+  for (auto& npc : npc_vehicles_)
+  {
+    // Find vehicle ahead in same lane
+    double vehicle_ahead_x = -1.0;
+    double min_distance = 1000.0;
+
+    for (const auto& pos : positions)
+    {
+      if (pos.second == npc.getLaneId())
+      {
+        const double distance = pos.first - npc.getX();
+        if (distance > 0.0 && distance < min_distance)
+        {
+          min_distance = distance;
+          vehicle_ahead_x = pos.first;
+        }
+      }
+    }
+
+    npc.update(kDeltaTime,
+               road_segment_,
+               traffic_lights_,
+               traffic_signs_,
+               vehicle_ahead_x);
+
+    // Respawn if NPC goes off screen
+    if (npc.getX() > road_segment_.getEndX() + 20.0)
+    {
+      npc.reset(-30.0); // Respawn behind
+    }
+  }
+
+  // Update visualization
+  perspective_view_->updateNPCVehicles(npc_vehicles_);
+}
+
+void MainWindow::onPedestriansToggle(int state)
+{
+  pedestrians_enabled_ = (state == Qt::Checked);
+
+  if (pedestrians_enabled_)
+  {
+    spawnPedestrians();
+    diagnostic_logs_->logInfo("Pedestrians enabled");
+  }
+  else
+  {
+    pedestrians_.clear();
+    perspective_view_->updatePedestrians({});
+    diagnostic_logs_->logInfo("Pedestrians disabled");
+  }
+}
+
+void MainWindow::spawnPedestrians()
+{
+  pedestrians_.clear();
+
+  const double lane_min_y = -6.0; // Left side of road
+  const double lane_max_y = 6.0;  // Right side of road
+
+  // Random distributions for spawn positions
+  std::uniform_real_distribution<double> x_dist(15.0, 85.0);
+  std::uniform_real_distribution<double> speed_dist(0.7, 1.4);
+  std::uniform_int_distribution<int> side_dist(0, 1);
+
+  // Spawn 3 pedestrians at random positions
+  for (std::uint32_t id = 1U; id <= 3U; ++id)
+  {
+    const double x = x_dist(random_engine_);
+    const double speed = speed_dist(random_engine_);
+    const bool from_left = (side_dist(random_engine_) == 0);
+    const double start_y = from_left ? lane_min_y : lane_max_y;
+    const double target_y = from_left ? lane_max_y : lane_min_y;
+    pedestrians_.emplace_back(id, x, start_y, target_y, speed);
+  }
+}
+
+void MainWindow::updatePedestrians()
+{
+  if (!pedestrians_enabled_ || pedestrians_.empty())
+  {
+    return;
+  }
+
+  for (auto& pedestrian : pedestrians_)
+  {
+    pedestrian.update(kDeltaTime);
+
+    // Respawn completed pedestrians after a delay
+    if (pedestrian.getState() == core::PedestrianState::Completed)
+    {
+      // Reset to opposite side
+      const double current_y = pedestrian.getY();
+      const double new_start = (current_y < 0.0) ? 6.0 : -6.0;
+      const double new_target = (current_y < 0.0) ? -6.0 : 6.0;
+      pedestrian.reset(pedestrian.getX(), new_start, new_target);
+    }
+  }
+
+  // Update visualization
+  perspective_view_->updatePedestrians(pedestrians_);
+}
+
+bool MainWindow::shouldEmergencyBrake() const
+{
+  if (!pedestrians_enabled_ || pedestrians_.empty())
+  {
+    return false;
+  }
+
+  constexpr double kEmergencyBrakeDistance = 5.0;
+  constexpr double kLaneWidth = 2.5;
+
+  for (const auto& pedestrian : pedestrians_)
+  {
+    // Only brake for crossing pedestrians
+    if (!pedestrian.isCrossing())
+    {
+      continue;
+    }
+
+    // Check if pedestrian is ahead within braking distance
+    const double distance_x = pedestrian.getX() - ego_vehicle_.getX();
+    if (distance_x > 0.0 && distance_x < kEmergencyBrakeDistance)
+    {
+      // Check if pedestrian is in our lane (Y position overlap)
+      const double ego_y = ego_vehicle_.getY();
+      const double ped_y = pedestrian.getY();
+      if (std::abs(ped_y - ego_y) < kLaneWidth)
+      {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 } // namespace ui

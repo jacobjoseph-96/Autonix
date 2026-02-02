@@ -6,6 +6,8 @@
 #define ADAS_UI_PERSPECTIVE_VIEW_HPP
 
 #include "ego_vehicle.hpp"
+#include "npc_vehicle.hpp"
+#include "pedestrian.hpp"
 #include "road_segment.hpp"
 #include "traffic_light.hpp"
 #include "traffic_sign.hpp"
@@ -61,7 +63,8 @@ public:
 
   //! @brief Update traffic lights display
   //! @param lights Traffic lights to display
-  //! @param vehicle_lane_id Lane ID of the vehicle (stop lines only drawn for this lane)
+  //! @param vehicle_lane_id Lane ID of the vehicle (stop lines only drawn for
+  //! this lane)
   //!
   void updateTrafficLights(const std::vector<core::TrafficLight>& lights,
                            core::LaneId vehicle_lane_id = 0U);
@@ -127,6 +130,35 @@ private:
   [[nodiscard]] QPolygonF
   createFovPolygon(double heading, double fov_radians, double range) const;
   [[nodiscard]] QColor getSignColor(core::TrafficSignType type) const;
+
+  // Turn signal items
+  QGraphicsPolygonItem *left_signal_item_{nullptr};
+  QGraphicsPolygonItem *right_signal_item_{nullptr};
+  core::TurnSignalState current_signal_state_{core::TurnSignalState::Off};
+  bool signal_blink_on_{false};
+  int blink_counter_{0};
+
+public:
+  //! @brief Update turn signal display
+  //! @param state Current turn signal state
+  //!
+  void updateTurnSignal(core::TurnSignalState state);
+
+  //! @brief Update NPC vehicles display
+  //! @param npcs NPC vehicles to display
+  //!
+  void updateNPCVehicles(const std::vector<core::NPCVehicle>& npcs);
+
+  //! @brief Update pedestrians display
+  //! @param pedestrians Pedestrians to display
+  //!
+  void updatePedestrians(const std::vector<core::Pedestrian>& pedestrians);
+
+private:
+  // NPC vehicle items
+  std::vector<QGraphicsPolygonItem *> npc_items_;
+  // Pedestrian items
+  std::vector<QGraphicsEllipseItem *> pedestrian_items_;
 };
 
 } // namespace ui

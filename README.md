@@ -13,6 +13,19 @@
 *   **Physics-Based Ego Vehicle**: Accurate simulation of vehicle physics, including heading, speed, and precise lane tracking.
 *   **Adaptive Cruise Control (ACC)**: Intelligent speed modulation maintaining safe following distances based on lead vehicles.
 *   **Autonomous Braking System**: Automatic response to traffic controls, red lights, and stop signs.
+*   **Lane Change System**: Safe lane changing with gap analysis and collision avoidance (A/D keys).
+
+### 🚙 NPC Vehicle Traffic
+*   **Randomized NPC Spawning**: NPC vehicles spawn at random positions on restart with collision-free placement.
+*   **Traffic Rule Compliance**: NPCs obey traffic lights and stop signs realistically.
+*   **NPC-to-NPC Collision Avoidance**: Intelligent following behavior prevents vehicle collisions.
+*   **Toggle Control**: Enable/disable NPC traffic via toolbar checkbox.
+
+### 🚶 Pedestrian Simulation
+*   **Crossing Pedestrians**: Simulates pedestrians crossing roads at intersections.
+*   **Emergency Braking**: Ego vehicle automatically brakes when pedestrian detected ahead.
+*   **Lane Change Safety**: Pedestrians considered in gap analysis - blocks lane change if pedestrian in target lane.
+*   **Randomized Spawn**: Pedestrians spawn at random X positions with random speeds and crossing directions.
 
 ### 🚦 Intelligent Traffic System
 *   **Dynamic Traffic Lights**: 
@@ -34,7 +47,7 @@
 ### 🛠️ Professional Tooling
 *   **Hermetic Build System**: Powered by **Nix Flakes** for pixel-perfect build reproducibility across environments.
 *   **Integrated Diagnostics**: Real-time console providing detailed system logs and event tracking.
-*   **Robust Testing Suite**: Comprehensive unit and integration testing using **GoogleTest**.
+*   **Robust Testing Suite**: Comprehensive unit and integration testing using **GoogleTest** (6 test suites, 100% pass rate).
 
 ---
 
@@ -106,10 +119,20 @@ ctest --test-dir build --output-on-failure
 
 ## 🎮 Simulation Controls
 
+### Toolbar
 *   **Start**: Begin the main simulation loop.
 *   **Stop**: Pause the simulation.
-*   **Reset**: Regenerate the world with new random traffic placements.
-*   **Diagnostic Logs**: Monitor real-time system events in the bottom dock.
+*   **Reset**: Regenerate the world with new random NPC/pedestrian placements.
+*   **Enable NPCs**: Toggle NPC vehicle traffic on/off.
+*   **Enable Pedestrians**: Toggle pedestrian crossing simulation on/off.
+
+### Keyboard
+*   **A / Left Arrow**: Request lane change to the left.
+*   **D / Right Arrow**: Request lane change to the right.
+*   **Escape**: Cancel active lane change.
+
+### Diagnostic Logs
+*   Monitor real-time system events in the bottom dock.
 
 ---
 

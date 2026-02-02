@@ -3,11 +3,17 @@
 add_library(adas_core STATIC
     include/types.hpp
     include/traffic_logic.hpp
+    include/lane_change_controller.hpp
+    include/npc_vehicle.hpp
+    include/pedestrian.hpp
     src/road_segment.cpp
     src/traffic_sign.cpp
     src/traffic_light.cpp
     src/ego_vehicle.cpp
     src/traffic_logic.cpp
+    src/lane_change_controller.cpp
+    src/npc_vehicle.cpp
+    src/pedestrian.cpp
 )
 
 target_include_directories(adas_core PUBLIC
@@ -22,3 +28,7 @@ add_test(NAME TrafficLightTests COMMAND test_traffic_light)
 add_executable(test_traffic_logic tests/test_traffic_logic.cpp)
 target_link_libraries(test_traffic_logic PRIVATE adas_core GTest::gtest GTest::gtest_main)
 add_test(NAME TrafficLogicTests COMMAND test_traffic_logic)
+
+add_executable(test_pedestrian tests/test_pedestrian.cpp)
+target_link_libraries(test_pedestrian PRIVATE adas_core GTest::gtest GTest::gtest_main)
+add_test(NAME PedestrianTests COMMAND test_pedestrian)
