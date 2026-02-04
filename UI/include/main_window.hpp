@@ -7,9 +7,11 @@
 
 #include "traffic_logic.hpp"
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDockWidget>
 #include <QKeyEvent>
 #include <QMainWindow>
+#include <QSpinBox>
 #include <QTimer>
 #include <QToolBar>
 #include <memory>
@@ -17,6 +19,7 @@
 #include <set>
 #include <vector>
 
+#include "adaptive_cruise_controller.hpp"
 #include "detection_overlay.hpp"
 #include "diagnostic_logs.hpp"
 #include "ego_vehicle.hpp"
@@ -62,6 +65,18 @@ private slots:
   //!
   void onSimulationTick();
 
+  //! @brief Handle ACC toggle checkbox
+  //!
+  void onAccToggle(int state);
+
+  //! @brief Handle ACC mode change
+  //!
+  void onAccModeChanged(int index);
+
+  //! @brief Handle ACC speed change
+  //!
+  void onAccSpeedChanged(int value);
+
   //! @brief Handle NPC toggle checkbox
   //!
   void onNpcToggle(int state);
@@ -94,6 +109,9 @@ private:
 
   // Lane change controller
   core::LaneChangeController lane_change_controller_;
+
+  // Adaptive Cruise Controller
+  std::unique_ptr<core::AdaptiveCruiseController> acc_controller_;
 
   // NPC vehicles
   std::vector<core::NPCVehicle> npc_vehicles_;
@@ -133,6 +151,7 @@ private:
   [[nodiscard]] bool shouldStopForLight() const;
   [[nodiscard]] bool shouldStopForSign();
   [[nodiscard]] bool shouldEmergencyBrake() const;
+  [[nodiscard]] double getDistanceToStopLine() const;
 
   // Toolbar
   std::unique_ptr<QToolBar> tool_bar_;
@@ -141,6 +160,11 @@ private:
   std::vector<core::Pedestrian> pedestrians_;
   bool pedestrians_enabled_{false};
   QCheckBox *pedestrians_toggle_{nullptr};
+
+  // ACC UI controls
+  QCheckBox *acc_toggle_{nullptr};
+  QComboBox *acc_mode_selector_{nullptr};
+  QSpinBox *acc_speed_selector_{nullptr};
 
 protected:
   //! @brief Handle key press events for lane change input

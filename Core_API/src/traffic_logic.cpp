@@ -116,45 +116,5 @@ bool TrafficLogic::isPositionValid(
   return true;
 }
 
-double TrafficLogic::computeACCSpeed(const EgoVehicle& ego,
-                                     const LeadVehicle& lead,
-                                     double set_speed,
-                                     double time_gap)
-{
-  const double ego_x = ego.getX();
-  const double lead_x = lead.getPosition().x;
-
-  // Basic distance check (assuming lead is ahead in X)
-  const double distance = lead_x - ego_x;
-
-  // If lead is behind or colliding, emergency stop (or return 0)
-  if (distance <= 0.0)
-  {
-    return 0.0;
-  }
-
-  // Calculate required safety gap:
-  // Gap = current_speed * time_gap + minimum_buffer (e.g. 5m)
-  // Using set_speed or current speed? Usually current speed.
-  const double current_speed = ego.getSpeed();
-  const double safe_gap =
-      std::max(current_speed * time_gap, 5.0); // Min 5m buffer
-
-  if (distance > safe_gap)
-  {
-    // Safe to cruise at set speed
-    return set_speed;
-  }
-  else
-  {
-    // Need to match lead vehicle speed
-    // Ideally we would decelerate, but for this simulation step we return
-    // target speed If we are significantly closer than safe gap, we might want
-    // to slow down MORE than lead to rebuild the gap. Simple logic: return lead
-    // speed. Improvement: return min(lead_speed, set_speed)
-    return std::min(lead.getSpeed(), set_speed);
-  }
-}
-
 } // namespace core
 } // namespace adas

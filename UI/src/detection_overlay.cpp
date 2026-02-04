@@ -230,7 +230,12 @@ DetectionOverlay::DetectionOverlay(QWidget *parent)
       no_lights_label_(std::make_unique<QLabel>("No lights detected")),
       stop_line_header_label_(std::make_unique<QLabel>("🛑 STOP LINE")),
       stop_line_distance_label_(std::make_unique<QLabel>("Distance: -- m")),
-      stop_line_status_label_(std::make_unique<QLabel>("No stop line ahead"))
+      stop_line_status_label_(std::make_unique<QLabel>("No stop line ahead")),
+      lead_vehicle_header_label_(std::make_unique<QLabel>("🚗 VEHICLE STATUS")),
+      ego_speed_label_(std::make_unique<QLabel>("Your Speed: 0 km/h")),
+      lead_vehicle_distance_label_(
+          std::make_unique<QLabel>("Lead Distance: -- m")),
+      lead_vehicle_speed_label_(std::make_unique<QLabel>("Lead Speed: -- km/h"))
 {
   setupUi();
 }
@@ -311,6 +316,42 @@ void DetectionOverlay::setupUi()
   main_layout_->addWidget(stop_line_header_label_.get());
   main_layout_->addWidget(stop_line_distance_label_.get());
   main_layout_->addWidget(stop_line_status_label_.get());
+
+  // Add separator between stop line and lead vehicle
+  auto *separator3 = new QFrame();
+  separator3->setFrameShape(QFrame::HLine);
+  separator3->setStyleSheet("background-color: #333; margin: 5px 0;");
+  main_layout_->addWidget(separator3);
+
+  // Add lead vehicle section
+  lead_vehicle_header_label_->setFont(header_font);
+  lead_vehicle_header_label_->setStyleSheet("color: #ffffff;"
+                                            "padding: 10px;"
+                                            "background-color: #16213e;"
+                                            "border-radius: 4px;");
+  lead_vehicle_header_label_->setAlignment(Qt::AlignCenter);
+
+  // Ego vehicle speed (prominent display)
+  QFont speed_font;
+  speed_font.setPointSize(14);
+  speed_font.setBold(true);
+
+  ego_speed_label_->setFont(speed_font);
+  ego_speed_label_->setStyleSheet("color: #4caf50; padding: 8px;");
+  ego_speed_label_->setAlignment(Qt::AlignCenter);
+
+  lead_vehicle_distance_label_->setFont(data_font);
+  lead_vehicle_distance_label_->setStyleSheet("color: #b0b0b0; padding: 5px;");
+  lead_vehicle_distance_label_->setAlignment(Qt::AlignCenter);
+
+  lead_vehicle_speed_label_->setFont(data_font);
+  lead_vehicle_speed_label_->setStyleSheet("color: #757575; padding: 5px;");
+  lead_vehicle_speed_label_->setAlignment(Qt::AlignCenter);
+
+  main_layout_->addWidget(lead_vehicle_header_label_.get());
+  main_layout_->addWidget(ego_speed_label_.get());
+  main_layout_->addWidget(lead_vehicle_distance_label_.get());
+  main_layout_->addWidget(lead_vehicle_speed_label_.get());
 
   main_layout_->addStretch();
 
@@ -484,6 +525,59 @@ void DetectionOverlay::updateStopLine(double distance_to_next,
     stop_line_distance_label_->setText("Distance: -- m");
     stop_line_status_label_->setText("No stop line ahead");
     stop_line_status_label_->setStyleSheet("color: #757575; padding: 5px;");
+  }
+}
+
+void DetectionOverlay::updateLeadVehicle(double distance,
+                                         double lead_speed,
+                                         double ego_speed)
+{
+  // Always update ego vehicle speed
+  const double ego_speed_kmh = ego_speed * 3.6; // Convert m/s to km/h
+  ego_speed_label_->setText(
+      QString("Your Speed: %1 km/h").arg(ego_speed_kmh, 0, 'f', 0));
+
+  if (distance > 0.0 && distance < 200.0)
+  {
+    // Lead vehicle detected
+    lead_vehicle_distance_label_->setText(
+        QString("Lead Distance: %1 m").arg(distance, 0, 'f', 1));
+
+    const double lead_speed_kmh = lead_speed * 3.6; // Convert m/s to km/h
+    lead_vehicle_speed_label_->setText(
+        QString("Lead Speed: %1 km/h").arg(lead_speed_kmh, 0, 'f', 0));
+
+    // Color based on distance - closer = more warning
+    if (distance < 10.0)
+    {
+      // Very close - danger
+      lead_vehicle_distance_label_->setStyleSheet(
+          "color: #f44336; font-weight: bold; padding: 5px;");
+      lead_vehicle_speed_label_->setStyleSheet("color: #f44336; padding: 5px;");
+    }
+    else if (distance < 20.0)
+    {
+      // Close - warning
+      lead_vehicle_distance_label_->setStyleSheet(
+          "color: #ffeb3b; font-weight: bold; padding: 5px;");
+      lead_vehicle_speed_label_->setStyleSheet("color: #ffeb3b; padding: 5px;");
+    }
+    else
+    {
+      // Safe distance
+      lead_vehicle_distance_label_->setStyleSheet(
+          "color: #4caf50; padding: 5px;");
+      lead_vehicle_speed_label_->setStyleSheet("color: #b0b0b0; padding: 5px;");
+    }
+  }
+  else
+  {
+    // No lead vehicle
+    lead_vehicle_distance_label_->setText("Lead Distance: -- m");
+    lead_vehicle_distance_label_->setStyleSheet(
+        "color: #757575; padding: 5px;");
+    lead_vehicle_speed_label_->setText("No vehicle ahead");
+    lead_vehicle_speed_label_->setStyleSheet("color: #757575; padding: 5px;");
   }
 }
 

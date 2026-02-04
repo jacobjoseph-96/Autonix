@@ -4,6 +4,7 @@
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
 ![Qt6](https://img.shields.io/badge/Qt-6-green)
 ![Nix](https://img.shields.io/badge/Nix-Flake-purple)
+![Coverage](https://img.shields.io/badge/Coverage-88%25-green)
 
 **Autonix** is a high-fidelity **Advanced Driver Assistance System (ADAS)** simulation environment. Built with **Modern C++20** and **Qt6**, it leverages **NixOS** for a hermetic, reproducible development ecosystem. The project is engineered to strictly adhere to safety-critical standards, including principles from **MISRA C++** and **AUTOSAR**, ensuring robust and reliable simulation capabilities.
 
@@ -11,8 +12,12 @@
 
 ### 🚗 Vehicle Dynamics & Control
 *   **Physics-Based Ego Vehicle**: Accurate simulation of vehicle physics, including heading, speed, and precise lane tracking.
-*   **Adaptive Cruise Control (ACC)**: Intelligent speed modulation maintaining safe following distances based on lead vehicles.
+*   **Adaptive Cruise Control (ACC)**: Intelligent speed modulation with three driving modes:
+    *   **Eco Mode**: Gentle acceleration (1.5 m/s²), 15m minimum following distance
+    *   **Comfort Mode**: Balanced performance (2.0 m/s²), 10m following distance
+    *   **Sport Mode**: Aggressive response (3.0 m/s²), 6m following distance
 *   **Autonomous Braking System**: Automatic response to traffic controls, red lights, and stop signs.
+*   **Predictive Smooth Braking**: Physics-based deceleration logic (`v² / 2d`) ensuring smooth stops exactly 3.0m before stop lines.
 *   **Lane Change System**: Safe lane changing with gap analysis and collision avoidance (A/D keys).
 
 ### 🚙 NPC Vehicle Traffic
@@ -32,22 +37,27 @@
     *   Realistic state cycling (Red → Green → Yellow) with configurable timing intervals.
     *   Proximity-aware generation ensuring realistic spacing between intersections.
 *   **Smart Traffic Signs**: 
-    *   **Right-Side Enforcement**: Logic to strictly obey signs on the right-hand side of the road while ignoring irrelevant signs on the left.
+    *   **Verified XML Parser**: Robust scenario loading with full error handling validation.
+    *   **Right-Side Enforcement**: Logic to strictly obey signs on the right-hand side of the road.
     *   **Rolling Stop Behavior**: Simulation of realistic "rolling stop" maneuvers (0.5s wait) at stop signs.
-    *   **State Memory**: Intelligent tracking to prevent repeated stops for the same sign.
 
 ### 👁️ Perception & Visualization
 *   **3D Perspective Rendering**: Real-time Qt6-based visualization of road geometry, lanes, and environmental elements.
+    *   **Interactive Zoom**: Mouse wheel zoom control to inspect traffic details or view the full road.
 *   **Field of View (FoV)**: Dynamic visualization of sensor coverage and detection cones.
 *   **Active Object Detection**: real-time classification and highlighting of relevant traffic objects.
 *   **Heads-Up Overlays**:
     *   **Stop Lines**: Dynamic rendering of stop lines at controlled intersections.
     *   **Detection Bounding Boxes**: Visual indicators for detected objects with relevance status.
 
-### 🛠️ Professional Tooling
-*   **Hermetic Build System**: Powered by **Nix Flakes** for pixel-perfect build reproducibility across environments.
+### 🛠️ Professional Tooling & Quality
+*   **Hermetic Build System**: Powered by **Nix Flakes** for pixel-perfect build reproducibility.
 *   **Integrated Diagnostics**: Real-time console providing detailed system logs and event tracking.
-*   **Robust Testing Suite**: Comprehensive unit and integration testing using **GoogleTest** (6 test suites, 100% pass rate).
+*   **Robust Testing Suite**: 
+    *   **100% Pass Rate**: 15 test suites covering Core, Perception, and Logic.
+    *   **UI Testing**: Headless validation of `MainWindow` and UI widgets.
+    *   **Code Coverage**: >88% Line Coverage / >94% Function Coverage.
+*   **CI/CD Ready**: Automated scripts for artifact generation (JUnit/Cobertura).
 
 ---
 
@@ -58,22 +68,36 @@
 *   **WSL2** (if on Windows) or a native Linux environment.
 
 ### 1. Build the Project
-Use the provided build script to compile the application and tests within the Nix environment:
+Use the provided build script to compile the application:
 ```bash
 ./build.sh
 ```
 
 ### 2. Run the Simulation
-Launch the simulation environment (handles all necessary Qt environment variables):
+Launch the simulation environment:
 ```bash
 ./run.sh
+```
+
+### 3. Verification & Testing
+Run all unit and integration tests:
+```bash
+./run_tests.sh
+```
+
+Generate a detailed HTML coverage report:
+```bash
+./check_coverage.sh
+```
+
+Generate artifacts for CodeBeamer (JUnit/Cobertura):
+```bash
+./generate_codebeamer_artifacts.sh
 ```
 
 ---
 
 ## 📂 Project Structure
-
-The project is architected with modularity and scalability in mind:
 
 ```text
 Autonix/
@@ -96,7 +120,7 @@ Autonix/
 
 ## 🛠️ Development Workflow
 
-For developers who wish to manually interact with the environment or run specific tests:
+For developers who wish to manually interact with the environment:
 
 ### Enter Development Shell
 ```bash
@@ -125,6 +149,10 @@ ctest --test-dir build --output-on-failure
 *   **Reset**: Regenerate the world with new random NPC/pedestrian placements.
 *   **Enable NPCs**: Toggle NPC vehicle traffic on/off.
 *   **Enable Pedestrians**: Toggle pedestrian crossing simulation on/off.
+*   **ACC (Adaptive Cruise Control)**:
+    *   **Checkbox**: Enable/disable ACC system.
+    *   **Mode Dropdown**: Select driving mode (Eco, Comfort, Sport).
+    *   **Speed Selector**: Set target cruising speed (30-130 km/h).
 
 ### Keyboard
 *   **A / Left Arrow**: Request lane change to the left.

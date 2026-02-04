@@ -5,6 +5,7 @@
 
 #include "main_window.hpp"
 #include <QApplication>
+#include <QTimer>
 
 /**
  * @brief Application entry point
@@ -41,7 +42,10 @@ int main(int argc, char *argv[])
 
   adas::ui::MainWindow main_window;
   main_window.show();
-  main_window.startSimulation();
+
+  // Ensure window is fully initialized before setting simulation state
+  // This fixes maximize button not working on WSL
+  QTimer::singleShot(0, &main_window, &adas::ui::MainWindow::stopSimulation);
 
   return app.exec();
 }

@@ -11,6 +11,7 @@
 #include <QToolBar>
 #include <algorithm>
 #include <chrono>
+#include <limits>
 
 namespace adas
 {
@@ -28,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
       simulation_timer_(std::make_unique<QTimer>(this)),
       ego_vehicle_(core::Coordinate{0.0, 7.5, 0.0}, 1U),
       road_segment_(1U, -10.0, 150.0), perception_filter_(),
+      acc_controller_(std::make_unique<core::AdaptiveCruiseController>()),
       random_engine_(static_cast<std::uint32_t>(
           std::chrono::steady_clock::now().time_since_epoch().count()))
 {
@@ -159,6 +161,73 @@ void MainWindow::setupToolBar()
           &MainWindow::onPedestriansToggle);
   tool_bar_->addWidget(pedestrians_toggle_);
 
+  // ACC controls separator
+  tool_bar_->addSeparator();
+
+  // ACC Enable Checkbox
+  acc_toggle_ = new QCheckBox("ACC", this);
+  acc_toggle_->setStyleSheet("QCheckBox {"
+                             "  color: #4fc3f7;"
+                             "  font-weight: bold;"
+                             "  spacing: 8px;"
+                             "}"
+                             "QCheckBox::indicator {"
+                             "  width: 18px;"
+                             "  height: 18px;"
+                             "}");
+  connect(
+      acc_toggle_, &QCheckBox::stateChanged, this, &MainWindow::onAccToggle);
+  tool_bar_->addWidget(acc_toggle_);
+
+  // ACC Mode Selector
+  acc_mode_selector_ = new QComboBox(this);
+  acc_mode_selector_->addItems({"Eco", "Comfort", "Sport"});
+  acc_mode_selector_->setCurrentIndex(1); // Default: Comfort
+  acc_mode_selector_->setStyleSheet("QComboBox {"
+                                    "  background-color: #1a1a2e;"
+                                    "  color: white;"
+                                    "  border: 1px solid #4a4a6a;"
+                                    "  border-radius: 4px;"
+                                    "  padding: 4px 8px;"
+                                    "  min-width: 80px;"
+                                    "}"
+                                    "QComboBox:hover {"
+                                    "  border-color: #4fc3f7;"
+                                    "}"
+                                    "QComboBox::drop-down {"
+                                    "  border: none;"
+                                    "}");
+  connect(acc_mode_selector_,
+          QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this,
+          &MainWindow::onAccModeChanged);
+  tool_bar_->addWidget(acc_mode_selector_);
+
+  // ACC Speed Selector
+  acc_speed_selector_ = new QSpinBox(this);
+  acc_speed_selector_->setRange(30, 130);
+  acc_speed_selector_->setValue(80);
+  acc_speed_selector_->setSuffix(" km/h");
+  acc_speed_selector_->setStyleSheet("QSpinBox {"
+                                     "  background-color: #1a1a2e;"
+                                     "  color: white;"
+                                     "  border: 1px solid #4a4a6a;"
+                                     "  border-radius: 4px;"
+                                     "  padding: 4px 8px;"
+                                     "  min-width: 70px;"
+                                     "}"
+                                     "QSpinBox:hover {"
+                                     "  border-color: #4fc3f7;"
+                                     "}");
+  connect(acc_speed_selector_,
+          QOverload<int>::of(&QSpinBox::valueChanged),
+          this,
+          &MainWindow::onAccSpeedChanged);
+  tool_bar_->addWidget(acc_speed_selector_);
+
+  // Enable ACC by default (after all widgets are created)
+  acc_toggle_->setChecked(true);
+
   addToolBar(Qt::TopToolBarArea, tool_bar_.get());
 }
 
@@ -208,6 +277,9 @@ void MainWindow::setupSimulation()
           &MainWindow::onSimulationTick);
 
   simulation_timer_->setInterval(static_cast<int>(1000.0 / kFrameRate));
+
+  // Show initial status - simulation starts stopped
+  statusBar()->showMessage("Ready - Press Start to begin simulation");
 }
 
 void MainWindow::initializeWorld()
@@ -374,11 +446,10 @@ void MainWindow::onSimulationTick()
     was_stopped_for_light_ = false;
   }
 
-  // Check for NPC vehicles ahead in the same lane
-  double target_speed = 5.0;                     // Default 5 m/s = 18 km/h
-  constexpr double kSafeFollowingDistance = 8.0; // meters
-  constexpr double kMinFollowingDistance =
-      3.0; // Stop completely at this distance
+  // Check for NPC vehicles ahead in the same lane - find lead vehicle
+  std::optional<core::Coordinate> lead_vehicle_pos = std::nullopt;
+  double lead_vehicle_speed = 0.0;
+  double closest_distance = std::numeric_limits<double>::max();
 
   if (npcs_enabled_)
   {
@@ -390,24 +461,19 @@ void MainWindow::onSimulationTick()
         const double distance = npc.getX() - ego_vehicle_.getX();
 
         // Only consider NPCs ahead of us
-        if (distance > 0.0 && distance < kSafeFollowingDistance)
+        if (distance > 0.0 && distance < closest_distance)
         {
-          if (distance < kMinFollowingDistance)
+          closest_distance = distance;
+          lead_vehicle_pos = core::Coordinate{npc.getX(), npc.getY(), 0.0};
+          lead_vehicle_speed = npc.getSpeed();
+
+          // Emergency stop if too close
+          if (distance < 3.0)
           {
-            // Too close - stop completely
             should_stop = true;
             diagnostic_logs_->logWarning(
                 QString("Stopping behind NPC - distance: %1m")
                     .arg(distance, 0, 'f', 1));
-          }
-          else
-          {
-            // Slow down proportionally to distance
-            const double speed_factor =
-                (distance - kMinFollowingDistance) /
-                (kSafeFollowingDistance - kMinFollowingDistance);
-            target_speed =
-                std::min(target_speed, npc.getSpeed() * speed_factor);
           }
         }
       }
@@ -421,16 +487,90 @@ void MainWindow::onSimulationTick()
     diagnostic_logs_->logWarning("EMERGENCY BRAKE - Pedestrian detected!");
   }
 
-  if (should_stop)
+  // Speed control: Smooth braking for approaching signals, ACC, or manual
+
+  // First check if we need to smoothly decelerate for an upcoming stop
+  const double stop_distance = getDistanceToStopLine();
+  const double current_speed = ego_vehicle_.getSpeed();
+  const bool approaching_stop = (stop_distance > 0.0 && stop_distance < 200.0);
+
+  // Target stopping distance is 3.0 meters before the line
+  const double target_stop_gap = 3.0;
+  const double dist_to_target = std::max(0.0, stop_distance - target_stop_gap);
+
+  // Calculate if we need to start braking based on physics
+  // Using kinematic equation: stopping_distance = v² / (2a)
+  constexpr double kComfortDecel = 3.5; // m/s²
+  const double required_stopping_dist =
+      (current_speed * current_speed) / (2.0 * kComfortDecel);
+
+  // Start braking if we need to stop within the remaining distance to target
+  // Use 0.9 factor to start slightly early for safety
+  const bool need_to_brake =
+      approaching_stop && (required_stopping_dist >= dist_to_target * 0.9);
+
+  // Check if we reached the stop point (should_stop triggers at <= 3.0m)
+  // or if we are very close to the target gap
+  if (should_stop ||
+      (approaching_stop && stop_distance <= target_stop_gap + 0.1))
   {
-    ego_vehicle_.setSpeed(0.0);
+    if (stop_distance <= target_stop_gap + 0.5)
+    {
+      // At target stop distance - full stop
+      ego_vehicle_.setSpeed(0.0);
+    }
+    else if (current_speed < 0.5)
+    {
+      // Nearly stopped and should be stopping - hold
+      ego_vehicle_.setSpeed(0.0);
+    }
+    else
+    {
+      // Emergency braking if we should stop but haven't yet (overshoot)
+      // or just finishing the stop
+      const double max_decel = 8.0;
+      const double new_speed = current_speed - (max_decel * kDeltaTime);
+      ego_vehicle_.setSpeed(std::max(0.0, new_speed));
+    }
+  }
+  else if (need_to_brake && current_speed > 0.1)
+  {
+    // Approaching a red light/stop sign - smooth deceleration to target
+    // Calculate exact deceleration needed to stop at target
+    const double effective_dist = std::max(1.0, dist_to_target);
+    const double required_decel =
+        (current_speed * current_speed) / (2.0 * effective_dist);
+
+    // Apply deceleration (limit to reasonable max)
+    const double applied_decel = std::min(required_decel, 6.0);
+    const double new_speed = current_speed - (applied_decel * kDeltaTime);
+    ego_vehicle_.setSpeed(std::max(0.0, new_speed));
+  }
+  else if (acc_controller_->isEnabled())
+  {
+    // ACC controls the speed based on lead vehicle
+    acc_controller_->update(
+        ego_vehicle_, lead_vehicle_pos, lead_vehicle_speed, kDeltaTime);
   }
   else
   {
-    ego_vehicle_.setSpeed(target_speed);
+    // Default manual speed when ACC is off
+    ego_vehicle_.setSpeed(5.0); // 5 m/s = 18 km/h
   }
 
   ego_vehicle_.update(kDeltaTime);
+
+  // Update lead vehicle display in detection overlay (after speed is updated)
+  if (closest_distance < std::numeric_limits<double>::max())
+  {
+    detection_overlay_->updateLeadVehicle(
+        closest_distance, lead_vehicle_speed, ego_vehicle_.getSpeed());
+  }
+  else
+  {
+    detection_overlay_->updateLeadVehicle(
+        -1.0, 0.0, ego_vehicle_.getSpeed()); // No lead vehicle
+  }
 
   // Update lane change
   updateLaneChange();
@@ -652,6 +792,75 @@ bool MainWindow::shouldStopForSign()
   }
 
   return should_stop;
+}
+
+double MainWindow::getDistanceToStopLine() const
+{
+  double closest_distance = std::numeric_limits<double>::max();
+  const double vehicle_x = ego_vehicle_.getX();
+  const core::LaneId vehicle_lane = ego_vehicle_.getLaneId();
+
+  // Check traffic lights for stop lines
+  for (const auto& light : traffic_lights_)
+  {
+    if (!light.isValid())
+    {
+      continue;
+    }
+
+    // Only check lights in our lane
+    if (light.getLaneId() != vehicle_lane)
+    {
+      continue;
+    }
+
+    // Only consider red or yellow lights
+    if (light.getState() != core::TrafficLightState::Red &&
+        light.getState() != core::TrafficLightState::Yellow)
+    {
+      continue;
+    }
+
+    const double stop_line_x = light.getX();
+    const double distance = stop_line_x - vehicle_x;
+
+    if (distance > 0.0 && distance < closest_distance)
+    {
+      closest_distance = distance;
+    }
+  }
+
+  // Check stop signs
+  for (const auto& sign : traffic_signs_)
+  {
+    if (sign.getType() != core::TrafficSignType::Stop)
+    {
+      continue;
+    }
+
+    // Check if sign is in our lane
+    if (sign.getLaneId() != vehicle_lane)
+    {
+      continue;
+    }
+
+    // Ignore processed signs
+    if (stop_sign_state_.processed_signs.count(sign.getId()) > 0)
+    {
+      continue;
+    }
+
+    const double sign_x = sign.getPosition().x;
+    const double distance = sign_x - vehicle_x;
+
+    // Consider signs ahead that we haven't passed yet
+    if (distance > 0.0 && distance < closest_distance)
+    {
+      closest_distance = distance;
+    }
+  }
+
+  return closest_distance;
 }
 
 void MainWindow::updateLaneChange()
@@ -1030,6 +1239,66 @@ bool MainWindow::shouldEmergencyBrake() const
   }
 
   return false;
+}
+
+void MainWindow::onAccToggle(int state)
+{
+  if (state == Qt::Checked)
+  {
+    acc_controller_->enable();
+    acc_controller_->setTargetSpeedKmh(
+        static_cast<double>(acc_speed_selector_->value()));
+    diagnostic_logs_->logInfo(QString("ACC enabled - Mode: %1, Target: %2 km/h")
+                                  .arg(acc_mode_selector_->currentText())
+                                  .arg(acc_speed_selector_->value()));
+  }
+  else
+  {
+    acc_controller_->disable();
+    diagnostic_logs_->logInfo("ACC disabled");
+  }
+}
+
+void MainWindow::onAccModeChanged(int index)
+{
+  core::ACCMode mode = core::ACCMode::Comfort;
+  switch (index)
+  {
+  case 0:
+    mode = core::ACCMode::Eco;
+    break;
+  case 1:
+    mode = core::ACCMode::Comfort;
+    break;
+  case 2:
+    mode = core::ACCMode::Sport;
+    break;
+  default:
+    break;
+  }
+
+  acc_controller_->setMode(mode);
+
+  if (acc_controller_->isEnabled())
+  {
+    const auto& config = acc_controller_->getConfig();
+    diagnostic_logs_->logInfo(
+        QString("ACC mode changed to %1 (time gap: %2s, accel: %3 m/s²)")
+            .arg(core::accModeToString(mode))
+            .arg(config.time_gap, 0, 'f', 1)
+            .arg(config.max_acceleration, 0, 'f', 1));
+  }
+}
+
+void MainWindow::onAccSpeedChanged(int value)
+{
+  acc_controller_->setTargetSpeedKmh(static_cast<double>(value));
+
+  if (acc_controller_->isEnabled())
+  {
+    diagnostic_logs_->logInfo(
+        QString("ACC target speed set to %1 km/h").arg(value));
+  }
 }
 
 } // namespace ui

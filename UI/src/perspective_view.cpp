@@ -590,14 +590,12 @@ void PerspectiveView::updateNPCVehicles(
 
     // Position NPC - X is horizontal (lane), Y is vertical (progress along
     // road)
-    const double scaled_x =
-        npc.getY() * scale_factor_ * zoom_level_; // Lane position
-    const double scaled_y =
-        -npc.getX() * scale_factor_ * zoom_level_; // Road progress
+    const double scaled_x = npc.getY() * scale_factor_;  // Lane position
+    const double scaled_y = -npc.getX() * scale_factor_; // Road progress
 
     QTransform transform;
     transform.translate(scaled_x, scaled_y);
-    transform.scale(scale_factor_ * zoom_level_, scale_factor_ * zoom_level_);
+    transform.scale(scale_factor_, scale_factor_);
     item->setTransform(transform);
     item->setZValue(80); // Below ego vehicle (100)
 
@@ -637,13 +635,12 @@ void PerspectiveView::updatePedestrians(
 
     // Position pedestrian - X is horizontal (lane), Y is vertical (progress)
     const double scaled_x =
-        pedestrian.getY() * scale_factor_ * zoom_level_; // Lateral position
-    const double scaled_y =
-        -pedestrian.getX() * scale_factor_ * zoom_level_; // Road progress
+        pedestrian.getY() * scale_factor_; // Lateral position
+    const double scaled_y = -pedestrian.getX() * scale_factor_; // Road progress
 
     QTransform transform;
     transform.translate(scaled_x, scaled_y);
-    transform.scale(scale_factor_ * zoom_level_, scale_factor_ * zoom_level_);
+    transform.scale(scale_factor_, scale_factor_);
     item->setTransform(transform);
     item->setZValue(90); // Above NPCs (80), below ego (100)
 

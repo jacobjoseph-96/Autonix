@@ -39,6 +39,8 @@
             # Development utilities
             gdb
             valgrind
+            lcov
+            gcovr
           ];
 
           shellHook = ''

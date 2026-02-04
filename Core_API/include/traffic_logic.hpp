@@ -23,8 +23,9 @@ class TrafficLogic
 {
 public:
   static constexpr double kStopSignWaitTime = 0.5;
-  static constexpr double kStopLineBuffer = 2.0;
-  static constexpr double kDetectionRange = 50.0;
+  // Distance at which vehicle must come to complete stop
+  static constexpr double kStopLineBuffer = 3.5;
+  static constexpr double kDetectionRange = 200.0;
   static constexpr double kMinLightDistance = 20.0;
 
   /**
@@ -57,19 +58,6 @@ public:
    */
   static bool isPositionValid(double candidate_x,
                               const std::vector<TrafficLight>& existing_lights);
-
-  /**
-   * @brief Compute ACC target speed based on lead vehicle
-   * @param ego Ego vehicle (follower)
-   * @param lead Lead vehicle (target)
-   * @param set_speed Driver set speed
-   * @param time_gap Desired time gap in seconds
-   * @return Target speed in m/s
-   */
-  static double computeACCSpeed(const EgoVehicle& ego,
-                                const EgoVehicle& lead,
-                                double set_speed,
-                                double time_gap = 2.0);
 };
 
 using LeadVehicle = EgoVehicle;

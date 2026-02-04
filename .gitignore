@@ -40,3 +40,10 @@ release/
 compile_commands.json
 .cache/
 .vscode/
+
+# Coverage
+*.gcda
+*.gcno
+coverage.info
+coverage.cleaned.info
+coverage_report/

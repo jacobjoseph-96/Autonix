@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <optional>
 
 namespace adas
@@ -89,6 +90,76 @@ enum class LaneChangeDirection : std::uint8_t
   Right = 2U
 };
 
+//! @brief Adaptive Cruise Control mode enumeration
+//! @details AUTOSAR compliant enum class with explicit underlying type
+//!
+enum class ACCMode : std::uint8_t
+{
+  Eco = 0U,     ///< Fuel-efficient, gentle acceleration/deceleration
+  Comfort = 1U, ///< Balanced driving experience (default)
+  Sport = 2U    ///< Aggressive response, tighter following
+};
+
+//! @brief ACC configuration parameters per mode
+//! @details Contains tuning parameters that vary by driving mode
+//!
+struct ACCConfig
+{
+  double time_gap{2.0};           ///< Time gap to lead vehicle in seconds
+  double max_acceleration{2.0};   ///< Maximum acceleration in m/s²
+  double max_deceleration{3.0};   ///< Maximum deceleration in m/s²
+  double min_following_dist{5.0}; ///< Minimum distance buffer in meters
+
+  constexpr ACCConfig() noexcept = default;
+
+  constexpr ACCConfig(double gap,
+                      double accel,
+                      double decel,
+                      double min_dist) noexcept
+      : time_gap(gap), max_acceleration(accel), max_deceleration(decel),
+        min_following_dist(min_dist)
+  {
+  }
+
+  //! @brief Get configuration for a specific ACC mode
+  //! @param mode The ACC mode
+  //! @return Configuration parameters for that mode
+  //!
+  [[nodiscard]] static constexpr ACCConfig forMode(ACCMode mode) noexcept
+  {
+    switch (mode)
+    {
+    case ACCMode::Eco:
+      return ACCConfig{3.0, 1.5, 2.5, 15.0}; // Gentle, fuel-efficient
+    case ACCMode::Comfort:
+      return ACCConfig{2.5, 2.0, 3.5, 10.0}; // Balanced
+    case ACCMode::Sport:
+      return ACCConfig{2.0, 3.0, 4.5, 6.0}; // Aggressive
+    default:
+      return ACCConfig{}; // Fallback to default
+    }
+  }
+};
+
+//! @brief Convert ACC mode to string representation
+//! @param mode The ACC mode
+//! @return String representation of the mode
+//!
+[[nodiscard]] inline const char *accModeToString(ACCMode mode) noexcept
+{
+  switch (mode)
+  {
+  case ACCMode::Eco:
+    return "Eco";
+  case ACCMode::Comfort:
+    return "Comfort";
+  case ACCMode::Sport:
+    return "Sport";
+  default:
+    return "Unknown";
+  }
+}
+
 //! @brief Result of gap analysis for lane change
 //!
 struct GapAnalysisResult
@@ -142,7 +213,7 @@ using SignId = std::uint32_t;
 namespace constants
 {
 /// Field of View angle in radians (120 degrees)
-constexpr double kFieldOfViewRadians = (120.0 * M_PI) / 180.0;
+constexpr double kFieldOfViewRadians = (120.0 * std::numbers::pi) / 180.0;
 
 /// Half FoV for symmetric cone calculation
 constexpr double kHalfFovRadians = kFieldOfViewRadians / 2.0;
