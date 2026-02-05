@@ -9,6 +9,7 @@ variables:
 stages:
   - build
   - test
+  - coverage
   - deploy
 
 # ... (cache section remains) ...
@@ -30,6 +31,21 @@ test_job:
   script:
     # Run tests using CTest
     - nix develop --extra-experimental-features "nix-command flakes" --command ctest --test-dir build --output-on-failure --no-tests=error
+
+coverage_job:
+  stage: coverage
+  needs: []  # Do not download release build artifacts
+  script:
+    - nix develop --extra-experimental-features "nix-command flakes" --command ./generate_codebeamer_artifacts.sh
+  artifacts:
+    paths:
+      - codebeamer_artifacts/
+    reports:
+      junit: codebeamer_artifacts/test_results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: codebeamer_artifacts/coverage.xml
+    expire_in: 1 week
 
 deploy_job:
   stage: deploy
