@@ -46,9 +46,12 @@ echo "[3/4] Running tests and generating JUnit XML..."
 # GTEST_OUTPUT must be absolute or relative to CWD.
 export GTEST_OUTPUT="xml:$(pwd)/${JUNIT_XML}"
 
-# Run usage ctest to execute all tests
+# Run usage ctest to execute all tests (allow failure to ensure artifacts are collected)
 cd "${BUILD_DIR}"
+set +e
 ctest --output-on-failure
+TEST_EXIT_CODE=$?
+set -e
 cd ..
 
 # Verify JUnit XML exists
@@ -77,3 +80,6 @@ echo "=============================="
 echo "Import these files into CodeBeamer:"
 echo "1. ${JUNIT_XML} (Test Results)"
 echo "2. ${COVERAGE_XML} (Coverage Report)"
+
+# Return the exit code from ctest so CI knows if tests passed/failed
+exit ${TEST_EXIT_CODE}

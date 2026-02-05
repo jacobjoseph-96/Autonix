@@ -59,7 +59,11 @@ void NPCVehicle::update(double delta_time,
     {
       // Slow down proportionally
       const double slowdown_factor = gap / kSafeFollowingDistance;
-      desired_speed = target_speed_ * slowdown_factor;
+      const double following_speed = target_speed_ * slowdown_factor;
+      
+      // Respect the lowest speed limit (e.g. if stopped for light, stay stopped)
+      desired_speed = std::min(desired_speed, following_speed);
+
       if (gap < 5.0)
       {
         desired_speed = 0.0; // Emergency stop

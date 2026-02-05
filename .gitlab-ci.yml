@@ -38,6 +38,7 @@ coverage_job:
   script:
     - nix develop --extra-experimental-features "nix-command flakes" --command ./generate_codebeamer_artifacts.sh
   artifacts:
+    when: always
     paths:
       - codebeamer_artifacts/
     reports:

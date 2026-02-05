@@ -58,3 +58,7 @@ add_executable(test_ego_physics tests/test_ego_physics.cpp)
 target_link_libraries(test_ego_physics PRIVATE adas_core GTest::gtest GTest::gtest_main)
 add_test(NAME EgoPhysicsTests COMMAND test_ego_physics)
 
+add_executable(test_npc_vehicle tests/test_npc_vehicle.cpp)
+target_link_libraries(test_npc_vehicle PRIVATE adas_core GTest::gtest GTest::gtest_main)
+add_test(NAME NPCVehicleTests COMMAND test_npc_vehicle)
+
