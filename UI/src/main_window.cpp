@@ -5,10 +5,13 @@
 
 #include "main_window.hpp"
 #include <QApplication>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStatusBar>
 #include <QToolBar>
+#include <QToolButton>
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -43,7 +46,7 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::setupUi()
 {
   setWindowTitle("ADAS Simulation - Qt6");
-  resize(1400, 900);
+  setMinimumSize(1200, 800); // Set minimum, don't force resize
 
   setStyleSheet("QMainWindow {"
                 "  background-color: #0a0a14;"
@@ -128,38 +131,114 @@ void MainWindow::setupToolBar()
   tool_bar_->addWidget(stop_btn);
   tool_bar_->addWidget(restart_btn);
 
-  // NPC toggle checkbox
+  // Simulation Elements Dropdown
   tool_bar_->addSeparator();
-  npc_toggle_ = new QCheckBox("Enable NPCs");
-  npc_toggle_->setStyleSheet("QCheckBox {"
-                             "  color: white;"
-                             "  font-weight: bold;"
-                             "  spacing: 8px;"
-                             "}"
-                             "QCheckBox::indicator {"
-                             "  width: 18px;"
-                             "  height: 18px;"
-                             "}");
-  connect(
-      npc_toggle_, &QCheckBox::stateChanged, this, &MainWindow::onNpcToggle);
-  tool_bar_->addWidget(npc_toggle_);
 
-  // Pedestrian toggle checkbox
-  pedestrians_toggle_ = new QCheckBox("Enable Pedestrians");
-  pedestrians_toggle_->setStyleSheet("QCheckBox {"
-                                     "  color: white;"
-                                     "  font-weight: bold;"
-                                     "  spacing: 8px;"
-                                     "}"
-                                     "QCheckBox::indicator {"
-                                     "  width: 18px;"
-                                     "  height: 18px;"
-                                     "}");
-  connect(pedestrians_toggle_,
-          &QCheckBox::stateChanged,
+  auto *elements_menu = new QMenu(this);
+  elements_menu->setStyleSheet("QMenu {"
+                               "  background-color: #1a1a2e;"
+                               "  color: white;"
+                               "  border: 1px solid #4a4a6a;"
+                               "  padding: 4px;"
+                               "}"
+                               "QMenu::item {"
+                               "  padding: 6px 20px;"
+                               "}"
+                               "QMenu::item:selected {"
+                               "  background-color: #2a2a4e;"
+                               "}"
+                               "QMenu::indicator {"
+                               "  width: 14px;"
+                               "  height: 14px;"
+                               "  margin-left: 6px;"
+                               "}");
+
+  // NPC toggle action
+  auto *npc_action = new QAction("NPCs", this);
+  npc_action->setCheckable(true);
+  npc_action->setChecked(false);
+  connect(npc_action,
+          &QAction::toggled,
           this,
-          &MainWindow::onPedestriansToggle);
-  tool_bar_->addWidget(pedestrians_toggle_);
+          [this](bool checked)
+          {
+            npcs_enabled_ = checked;
+            if (checked && npc_vehicles_.empty())
+            {
+              spawnNPCs();
+            }
+          });
+  elements_menu->addAction(npc_action);
+
+  // Pedestrians toggle action
+  auto *pedestrians_action = new QAction("Pedestrians", this);
+  pedestrians_action->setCheckable(true);
+  pedestrians_action->setChecked(false);
+  connect(pedestrians_action,
+          &QAction::toggled,
+          this,
+          [this](bool checked)
+          {
+            pedestrians_enabled_ = checked;
+            if (checked && pedestrians_.empty())
+            {
+              spawnPedestrians();
+            }
+          });
+  elements_menu->addAction(pedestrians_action);
+
+  elements_menu->addSeparator();
+
+  // Traffic lights toggle action
+  auto *lights_action = new QAction("Traffic Lights", this);
+  lights_action->setCheckable(true);
+  lights_action->setChecked(true);
+  connect(lights_action,
+          &QAction::toggled,
+          this,
+          [this](bool checked) { traffic_lights_enabled_ = checked; });
+  elements_menu->addAction(lights_action);
+
+  // Stop signs toggle action
+  auto *signs_action = new QAction("Stop Signs", this);
+  signs_action->setCheckable(true);
+  signs_action->setChecked(true);
+  connect(signs_action,
+          &QAction::toggled,
+          this,
+          [this](bool checked) { stop_signs_enabled_ = checked; });
+  elements_menu->addAction(signs_action);
+
+  // Stop lines toggle action
+  auto *stop_lines_action = new QAction("Stop Lines", this);
+  stop_lines_action->setCheckable(true);
+  stop_lines_action->setChecked(true);
+  connect(stop_lines_action,
+          &QAction::toggled,
+          this,
+          [this](bool checked) { stop_lines_enabled_ = checked; });
+  elements_menu->addAction(stop_lines_action);
+
+  auto *elements_btn = new QToolButton(this);
+  elements_btn->setText("Elements ▼");
+  elements_btn->setMenu(elements_menu);
+  elements_btn->setPopupMode(QToolButton::InstantPopup);
+  elements_btn->setStyleSheet("QToolButton {"
+                              "  background-color: #1a1a2e;"
+                              "  color: white;"
+                              "  border: 1px solid #4a4a6a;"
+                              "  border-radius: 6px;"
+                              "  padding: 8px 12px;"
+                              "  font-weight: bold;"
+                              "}"
+                              "QToolButton:hover {"
+                              "  background-color: #2a2a4e;"
+                              "  border-color: #66a5f5;"
+                              "}"
+                              "QToolButton::menu-indicator {"
+                              "  image: none;"
+                              "}");
+  tool_bar_->addWidget(elements_btn);
 
   // ACC controls separator
   tool_bar_->addSeparator();
@@ -238,23 +317,44 @@ void MainWindow::setupDockWidgets()
   perspective_dock_->setFeatures(QDockWidget::DockWidgetMovable |
                                  QDockWidget::DockWidgetFloatable);
 
-  overlay_dock_->setWidget(detection_overlay_.get());
+  // Wrap detection overlay in a scroll area for scrollable content
+  auto *scroll_area = new QScrollArea();
+  scroll_area->setWidget(detection_overlay_.get());
+  scroll_area->setWidgetResizable(true);
+  scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  scroll_area->setStyleSheet(
+      "QScrollArea { border: none; background: transparent; }");
+
+  overlay_dock_->setWidget(scroll_area);
   overlay_dock_->setFeatures(QDockWidget::DockWidgetMovable |
                              QDockWidget::DockWidgetFloatable);
+  overlay_dock_->setAllowedAreas(
+      Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::TopDockWidgetArea |
+      Qt::BottomDockWidgetArea);
   overlay_dock_->setMinimumWidth(280);
-  overlay_dock_->setMaximumWidth(350);
 
   logs_dock_->setWidget(diagnostic_logs_.get());
   logs_dock_->setFeatures(QDockWidget::DockWidgetMovable |
                           QDockWidget::DockWidgetFloatable);
+  logs_dock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea |
+                              Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
   logs_dock_->setMinimumHeight(150);
   logs_dock_->setMaximumHeight(250);
+
+  // Enable dock nesting for split screen behavior
+  setDockNestingEnabled(true);
 
   // Add docks to main window
   setCentralWidget(nullptr);
   addDockWidget(Qt::LeftDockWidgetArea, perspective_dock_.get());
   addDockWidget(Qt::RightDockWidgetArea, overlay_dock_.get());
   addDockWidget(Qt::BottomDockWidgetArea, logs_dock_.get());
+
+  // Configure perspective dock to allow all areas for flexibility
+  perspective_dock_->setAllowedAreas(
+      Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea | Qt::TopDockWidgetArea |
+      Qt::BottomDockWidgetArea);
 
   // Connect signals
   connect(detection_overlay_.get(),
@@ -360,6 +460,45 @@ void MainWindow::generateTrafficSigns()
   // Add a specific stop sign ahead for demonstration
   traffic_signs_.push_back(core::TrafficSign::create(
       100U, core::TrafficSignType::Stop, core::Position{50.0, 7.5}, 1U));
+
+  // Add dedicated speed limit signs at strategic positions
+  // Lane boundaries: Lane 1 (y=5-10), Lane 2 (y=0-5), Lane 3 (y=-5-0)
+  // Place signs at lane centers: Lane 1 (y=7.5), Lane 2 (y=2.5), Lane 3
+  // (y=-2.5)
+  traffic_signs_.push_back(
+      core::TrafficSign::create(101U,
+                                core::TrafficSignType::SpeedLimit,
+                                core::Position{15.0, 7.5}, // Lane 1 center
+                                1U,
+                                30U)); // 30 km/h zone start
+
+  traffic_signs_.push_back(
+      core::TrafficSign::create(102U,
+                                core::TrafficSignType::SpeedLimit,
+                                core::Position{35.0, 2.5}, // Lane 2 center
+                                2U,
+                                50U)); // 50 km/h urban
+
+  traffic_signs_.push_back(
+      core::TrafficSign::create(103U,
+                                core::TrafficSignType::SpeedLimit,
+                                core::Position{65.0, 7.5}, // Lane 1 center
+                                1U,
+                                60U)); // 60 km/h
+
+  traffic_signs_.push_back(
+      core::TrafficSign::create(104U,
+                                core::TrafficSignType::SpeedLimit,
+                                core::Position{85.0, -2.5}, // Lane 3 center
+                                3U,
+                                80U)); // 80 km/h highway transition
+
+  traffic_signs_.push_back(
+      core::TrafficSign::create(105U,
+                                core::TrafficSignType::SpeedLimit,
+                                core::Position{110.0, 2.5}, // Lane 2 center
+                                2U,
+                                100U)); // 100 km/h highway
 }
 
 void MainWindow::startSimulation()
@@ -587,8 +726,18 @@ void MainWindow::onSimulationTick()
 
   // Update visualizations
   perspective_view_->updateEgoVehicle(ego_vehicle_);
-  perspective_view_->updateTrafficLights(traffic_lights_,
-                                         ego_vehicle_.getLaneId());
+
+  // Only render traffic lights if enabled
+  if (traffic_lights_enabled_)
+  {
+    perspective_view_->updateTrafficLights(traffic_lights_,
+                                           ego_vehicle_.getLaneId());
+  }
+  else
+  {
+    perspective_view_->updateTrafficLights({}, ego_vehicle_.getLaneId());
+  }
+
   perspective_view_->updateFovVisualization(ego_vehicle_.getPosition(),
                                             ego_vehicle_.getHeading(),
                                             perception_filter_.getFovRadians(),
@@ -604,20 +753,132 @@ void MainWindow::onSimulationTick()
 
 void MainWindow::updatePerception()
 {
-  const auto detections =
+  auto detections =
       perception_filter_.filter(ego_vehicle_, traffic_signs_, road_segment_);
+
+  // For speed limit signs, require EXACT lane match (not adjacent lanes)
+  // This affects how they're displayed in the sign list
+  const core::LaneId ego_lane = ego_vehicle_.getLaneId();
+  for (auto& det : detections)
+  {
+    if (det.sign.getType() == core::TrafficSignType::SpeedLimit)
+    {
+      // Speed limits only apply to signs in the exact same lane
+      det.is_relevant = (det.sign.getLaneId() == ego_lane);
+    }
+  }
+
+  // Filter signs based on enabled toggles
+  std::vector<core::TrafficSign> visible_signs;
+  for (const auto& sign : traffic_signs_)
+  {
+    // Filter out stop signs if disabled
+    if (sign.getType() == core::TrafficSignType::Stop && !stop_signs_enabled_)
+    {
+      continue;
+    }
+    visible_signs.push_back(sign);
+  }
+
+  // Filter detections based on enabled toggles
+  std::vector<perception::DetectionResult> visible_detections;
+  for (const auto& det : detections)
+  {
+    if (det.sign.getType() == core::TrafficSignType::Stop &&
+        !stop_signs_enabled_)
+    {
+      continue;
+    }
+    visible_detections.push_back(det);
+  }
 
   // Collect detected sign IDs
   std::vector<core::SignId> detected_ids;
-  detected_ids.reserve(detections.size());
-  for (const auto& det : detections)
+  detected_ids.reserve(visible_detections.size());
+  for (const auto& det : visible_detections)
   {
     detected_ids.push_back(det.sign.getId());
   }
 
-  // Update UI
-  perspective_view_->updateSigns(traffic_signs_, detected_ids);
-  detection_overlay_->updateDetections(detections);
+  // Update UI with filtered signs
+  perspective_view_->updateSigns(visible_signs, detected_ids);
+  detection_overlay_->updateDetections(visible_detections);
+
+  // Find the most recently PASSED speed limit sign in the same lane
+  // Speed limits apply AFTER passing the sign, not before
+  std::optional<std::uint32_t> active_speed_limit = std::nullopt;
+  double closest_passed_sign_distance = std::numeric_limits<double>::max();
+  bool has_speed_limit_in_same_lane = false;
+
+  const double ego_x = ego_vehicle_.getX();
+
+  // Check all traffic signs (not just detected ones, to find passed signs)
+  for (const auto& sign : traffic_signs_)
+  {
+    if (sign.getType() == core::TrafficSignType::SpeedLimit &&
+        sign.getLaneId() == ego_lane)
+    {
+      has_speed_limit_in_same_lane = true;
+      const double sign_x = sign.getPosition().x;
+
+      // Only consider signs we have PASSED (sign is behind us)
+      if (sign_x < ego_x)
+      {
+        const double distance_passed = ego_x - sign_x;
+        // Find the most recently passed sign (closest behind us)
+        if (distance_passed < closest_passed_sign_distance)
+        {
+          closest_passed_sign_distance = distance_passed;
+          active_speed_limit = sign.getValue();
+        }
+      }
+    }
+  }
+
+  // Update speed limit display only when we have passed a sign
+  if (active_speed_limit.has_value())
+  {
+    detection_overlay_->updateSpeedLimitDetection(active_speed_limit, 0.0);
+
+    // Cap ACC target speed to active speed limit (convert km/h to m/s)
+    if (acc_controller_->isEnabled())
+    {
+      const double limit_ms =
+          static_cast<double>(active_speed_limit.value()) / 3.6;
+      const double current_target = acc_controller_->getTargetSpeed();
+      if (current_target > limit_ms)
+      {
+        acc_controller_->setTargetSpeed(limit_ms);
+        diagnostic_logs_->logInfo(
+            QString("ACC target capped to speed limit: %1 km/h")
+                .arg(active_speed_limit.value()));
+      }
+    }
+  }
+  else if (!has_speed_limit_in_same_lane)
+  {
+    // No speed limit signs in ego's lane - clear the active limit
+    // This handles lane changes where the previous limit no longer applies
+    detection_overlay_->clearSpeedLimit();
+  }
+
+  // Check if vehicle is exceeding the active speed limit
+  auto active_limit = detection_overlay_->getActiveSpeedLimit();
+  if (active_limit.has_value())
+  {
+    const double limit_ms = static_cast<double>(active_limit.value()) / 3.6;
+    const bool exceeding =
+        ego_vehicle_.getSpeed() > limit_ms + 0.5; // 0.5 m/s tolerance
+    detection_overlay_->setSpeedLimitExceeding(exceeding);
+
+    if (exceeding)
+    {
+      diagnostic_logs_->logWarning(
+          QString("Exceeding speed limit: %1 km/h > %2 km/h")
+              .arg(ego_vehicle_.getSpeed() * 3.6, 0, 'f', 0)
+              .arg(active_limit.value()));
+    }
+  }
 
   // Check for safety violations (approaching stop sign too fast)
   for (const auto& det : detections)
@@ -702,11 +963,22 @@ void MainWindow::updateTrafficLights()
 
 bool MainWindow::shouldStopForLight() const
 {
+  if (!traffic_lights_enabled_)
+  {
+    return false;
+  }
   return core::TrafficLogic::shouldStopForLight(ego_vehicle_, traffic_lights_);
 }
 
 void MainWindow::updateTrafficLightDetections()
 {
+  // Skip detection if traffic lights are disabled
+  if (!traffic_lights_enabled_)
+  {
+    detection_overlay_->updateLightDetections({});
+    return;
+  }
+
   constexpr double kDetectionRange = 100.0;
 
   std::vector<perception::TrafficLightDetectionResult> detections;
@@ -777,6 +1049,10 @@ void MainWindow::updateTrafficLightDetections()
 
 bool MainWindow::shouldStopForSign()
 {
+  if (!stop_signs_enabled_)
+  {
+    return false;
+  }
   const bool was_waiting = stop_sign_state_.was_stopped;
   const bool should_stop = core::TrafficLogic::shouldStopForSign(
       ego_vehicle_, traffic_signs_, stop_sign_state_, kDeltaTime);
@@ -796,6 +1072,10 @@ bool MainWindow::shouldStopForSign()
 
 double MainWindow::getDistanceToStopLine() const
 {
+  if (!stop_lines_enabled_)
+  {
+    return std::numeric_limits<double>::max();
+  }
   double closest_distance = std::numeric_limits<double>::max();
   const double vehicle_x = ego_vehicle_.getX();
   const core::LaneId vehicle_lane = ego_vehicle_.getLaneId();
@@ -1087,6 +1367,7 @@ void MainWindow::updateNPCs()
 {
   if (!npcs_enabled_ || npc_vehicles_.empty())
   {
+    perspective_view_->updateNPCVehicles({});
     return;
   }
 
@@ -1122,11 +1403,57 @@ void MainWindow::updateNPCs()
       }
     }
 
-    npc.update(kDeltaTime,
-               road_segment_,
-               traffic_lights_,
-               traffic_signs_,
-               vehicle_ahead_x);
+    // Pass empty lists to NPCs for disabled elements
+    const std::vector<core::TrafficLight>& npc_lights =
+        traffic_lights_enabled_
+            ? traffic_lights_
+            : static_cast<const std::vector<core::TrafficLight>&>(
+                  std::vector<core::TrafficLight>{});
+    const std::vector<core::TrafficSign>& npc_signs =
+        stop_signs_enabled_
+            ? traffic_signs_
+            : static_cast<const std::vector<core::TrafficSign>&>(
+                  std::vector<core::TrafficSign>{});
+
+    // Check for pedestrians crossing in front of NPC
+    if (pedestrians_enabled_)
+    {
+      constexpr double kPedestrianStopDistance = 5.0;
+
+      // Get NPC's lane boundary
+      const auto lane_boundary = road_segment_.getLaneBoundary(npc.getLaneId());
+      if (!lane_boundary.has_value())
+      {
+        continue; // Skip if lane not found
+      }
+
+      for (const auto& pedestrian : pedestrians_)
+      {
+        if (pedestrian.isCrossing())
+        {
+          const double ped_x = pedestrian.getX();
+          const double ped_y = pedestrian.getY();
+          const double distance_to_ped = ped_x - npc.getX();
+
+          // Check if pedestrian is in NPC's lane (Y position)
+          const bool ped_in_lane = lane_boundary->containsY(ped_y);
+
+          // If pedestrian is ahead, close, and in the lane
+          if (ped_in_lane && distance_to_ped > 0.0 &&
+              distance_to_ped <= kPedestrianStopDistance)
+          {
+            // Treat pedestrian position as an obstacle
+            if (vehicle_ahead_x < 0.0 || ped_x < vehicle_ahead_x)
+            {
+              vehicle_ahead_x = ped_x - 1.0; // Stop 1m before pedestrian
+            }
+          }
+        }
+      }
+    }
+
+    npc.update(
+        kDeltaTime, road_segment_, npc_lights, npc_signs, vehicle_ahead_x);
 
     // Respawn if NPC goes off screen
     if (npc.getX() > road_segment_.getEndX() + 20.0)

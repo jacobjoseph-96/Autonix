@@ -6,6 +6,7 @@
 #define ADAS_UI_DETECTION_OVERLAY_HPP
 
 #include "perception_filter.hpp"
+#include "speed_limit_widget.hpp"
 #include "traffic_light.hpp"
 #include "types.hpp"
 #include <QFrame>
@@ -102,6 +103,28 @@ public:
   //!
   void setMaxDisplayed(std::size_t max_count);
 
+  //! @brief Update speed limit detection
+  //! @param speedLimit Detected speed limit value (nullopt if no new detection)
+  //! @param distance Distance to the sign in meters
+  //!
+  void updateSpeedLimitDetection(std::optional<std::uint32_t> speedLimit,
+                                 double distance);
+
+  //! @brief Clear the active speed limit (e.g., when changing roads)
+  //!
+  void clearSpeedLimit();
+
+  //! @brief Set speed limit exceeding warning state
+  //! @param exceeding True if vehicle speed exceeds the limit
+  //!
+  void setSpeedLimitExceeding(bool exceeding);
+
+  //! @brief Get the currently active speed limit for ACC integration
+  //! @return Active speed limit in km/h, or nullopt if none
+  //!
+  [[nodiscard]] std::optional<std::uint32_t>
+  getActiveSpeedLimit() const noexcept;
+
 signals:
   //! @brief Emitted when a relevant sign is detected
   //!
@@ -110,6 +133,10 @@ signals:
   //! @brief Emitted when a relevant traffic light is detected
   //!
   void relevantLightDetected(const QString& state, double distance);
+
+  //! @brief Emitted when the active speed limit changes (for ACC integration)
+  //!
+  void speedLimitChanged(std::optional<std::uint32_t> newLimit);
 
 private:
   static constexpr std::size_t kDefaultMaxDisplayed = 5U;
@@ -130,6 +157,10 @@ private:
   std::unique_ptr<QLabel> stop_line_header_label_;
   std::unique_ptr<QLabel> stop_line_distance_label_;
   std::unique_ptr<QLabel> stop_line_status_label_;
+
+  // Speed limit section
+  std::unique_ptr<QLabel> speed_limit_header_label_;
+  std::unique_ptr<SpeedLimitWidget> speed_limit_widget_;
 
   // Lead vehicle section
   std::unique_ptr<QLabel> lead_vehicle_header_label_;

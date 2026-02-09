@@ -7,10 +7,10 @@
 
 #include "ego_vehicle.hpp"
 #include "road_segment.hpp"
+#include "safe_distance_calculator.hpp"
 #include "traffic_light.hpp"
 #include "traffic_sign.hpp"
 #include "types.hpp"
-#include "safe_distance_calculator.hpp"
 #include <cmath>
 #include <vector>
 
@@ -36,6 +36,18 @@ struct DetectionResult
                   bool fov) noexcept
       : sign(s), distance(d), is_relevant(rel), in_fov(fov)
   {
+  }
+
+  //! @brief Get speed limit value if this is a speed limit sign
+  //! @return Speed limit in km/h if applicable, std::nullopt otherwise
+  //!
+  [[nodiscard]] std::optional<std::uint32_t> getSpeedLimit() const noexcept
+  {
+    if (sign.getType() == core::TrafficSignType::SpeedLimit)
+    {
+      return sign.getValue();
+    }
+    return std::nullopt;
   }
 };
 

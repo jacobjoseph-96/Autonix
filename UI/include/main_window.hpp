@@ -116,7 +116,11 @@ private:
   // NPC vehicles
   std::vector<core::NPCVehicle> npc_vehicles_;
   bool npcs_enabled_{false};
-  QCheckBox *npc_toggle_{nullptr};
+
+  // Traffic element visibility flags
+  bool traffic_lights_enabled_{true};
+  bool stop_signs_enabled_{true};
+  bool stop_lines_enabled_{true};
 
   // Random engine (MISRA compliant - no rand())
   std::mt19937 random_engine_;

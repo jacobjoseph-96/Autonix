@@ -52,7 +52,25 @@ SignDetectionEntry::SignDetectionEntry(QWidget *parent)
 
 void SignDetectionEntry::update(const perception::DetectionResult& result)
 {
-  type_label_->setText(QString("🚸 %1").arg(result.sign.getTypeString()));
+  // Display speed limit value prominently for speed limit signs
+  if (result.sign.getType() == core::TrafficSignType::SpeedLimit)
+  {
+    auto limit = result.sign.getValue();
+    if (limit.has_value())
+    {
+      type_label_->setText(
+          QString("🚫 SPEED LIMIT %1 km/h").arg(limit.value()));
+    }
+    else
+    {
+      type_label_->setText("🚫 SPEED LIMIT");
+    }
+  }
+  else
+  {
+    type_label_->setText(QString("🚸 %1").arg(result.sign.getTypeString()));
+  }
+
   distance_label_->setText(
       QString("Distance: %1 m").arg(result.distance, 0, 'f', 2));
 
@@ -231,12 +249,20 @@ DetectionOverlay::DetectionOverlay(QWidget *parent)
       stop_line_header_label_(std::make_unique<QLabel>("🛑 STOP LINE")),
       stop_line_distance_label_(std::make_unique<QLabel>("Distance: -- m")),
       stop_line_status_label_(std::make_unique<QLabel>("No stop line ahead")),
+      speed_limit_header_label_(std::make_unique<QLabel>("🚫 SPEED LIMIT")),
+      speed_limit_widget_(std::make_unique<SpeedLimitWidget>(this)),
       lead_vehicle_header_label_(std::make_unique<QLabel>("🚗 VEHICLE STATUS")),
       ego_speed_label_(std::make_unique<QLabel>("Your Speed: 0 km/h")),
       lead_vehicle_distance_label_(
           std::make_unique<QLabel>("Lead Distance: -- m")),
       lead_vehicle_speed_label_(std::make_unique<QLabel>("Lead Speed: -- km/h"))
 {
+  // Forward speed limit changes signal for ACC integration
+  connect(speed_limit_widget_.get(),
+          &SpeedLimitWidget::speedLimitChanged,
+          this,
+          &DetectionOverlay::speedLimitChanged);
+
   setupUi();
 }
 
@@ -317,11 +343,28 @@ void DetectionOverlay::setupUi()
   main_layout_->addWidget(stop_line_distance_label_.get());
   main_layout_->addWidget(stop_line_status_label_.get());
 
-  // Add separator between stop line and lead vehicle
+  // Add separator between stop line and speed limit
   auto *separator3 = new QFrame();
   separator3->setFrameShape(QFrame::HLine);
   separator3->setStyleSheet("background-color: #333; margin: 5px 0;");
   main_layout_->addWidget(separator3);
+
+  // Add speed limit section
+  speed_limit_header_label_->setFont(header_font);
+  speed_limit_header_label_->setStyleSheet("color: #ffffff;"
+                                           "padding: 10px;"
+                                           "background-color: #16213e;"
+                                           "border-radius: 4px;");
+  speed_limit_header_label_->setAlignment(Qt::AlignCenter);
+  main_layout_->addWidget(speed_limit_header_label_.get());
+  main_layout_->addWidget(speed_limit_widget_.get());
+
+  // Add separator between speed limit and lead vehicle
+  auto *separator4 = new QFrame();
+  separator4->setFrameShape(QFrame::HLine);
+  separator4->setStyleSheet("background-color: #333; margin: 5px 0;");
+  ;
+  main_layout_->addWidget(separator4);
 
   // Add lead vehicle section
   lead_vehicle_header_label_->setFont(header_font);
@@ -579,6 +622,41 @@ void DetectionOverlay::updateLeadVehicle(double distance,
     lead_vehicle_speed_label_->setText("No vehicle ahead");
     lead_vehicle_speed_label_->setStyleSheet("color: #757575; padding: 5px;");
   }
+}
+
+void DetectionOverlay::updateSpeedLimitDetection(
+    std::optional<std::uint32_t> speedLimit, double distance)
+{
+  if (speed_limit_widget_)
+  {
+    speed_limit_widget_->updateLimit(speedLimit, distance);
+  }
+}
+
+void DetectionOverlay::clearSpeedLimit()
+{
+  if (speed_limit_widget_)
+  {
+    speed_limit_widget_->clearLimit();
+  }
+}
+
+void DetectionOverlay::setSpeedLimitExceeding(bool exceeding)
+{
+  if (speed_limit_widget_)
+  {
+    speed_limit_widget_->setExceedingWarning(exceeding);
+  }
+}
+
+std::optional<std::uint32_t>
+DetectionOverlay::getActiveSpeedLimit() const noexcept
+{
+  if (speed_limit_widget_)
+  {
+    return speed_limit_widget_->getCurrentLimit();
+  }
+  return std::nullopt;
 }
 
 } // namespace ui

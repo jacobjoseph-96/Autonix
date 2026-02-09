@@ -4,21 +4,23 @@
  */
 
 #include "ego_vehicle.hpp"
+#include "perception_filter.hpp"
 #include "road_segment.hpp"
 #include "traffic_sign.hpp"
-#include "perception_filter.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-
 
 using namespace adas::core;
 using namespace adas::perception;
 
-namespace {
+namespace
+{
 
-class PerceptionFilterTest : public ::testing::Test {
+class PerceptionFilterTest : public ::testing::Test
+{
 protected:
-  void SetUp() override {
+  void SetUp() override
+  {
     // Create road with 3 lanes
     road_.addLane(1U, LaneBoundary{10.0, 5.0}); // Lane 1
     road_.addLane(2U, LaneBoundary{5.0, 0.0});  // Lane 2
@@ -33,7 +35,8 @@ protected:
 // Field of View Tests
 // =============================================================================
 
-TEST_F(PerceptionFilterTest, SignDirectlyAhead_InFov) {
+TEST_F(PerceptionFilterTest, SignDirectlyAhead_InFov)
+{
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U); // Heading = 0 (east)
 
   const bool in_fov = filter_.isInFieldOfView(ego, Position{50.0, 5.0});
@@ -41,7 +44,8 @@ TEST_F(PerceptionFilterTest, SignDirectlyAhead_InFov) {
   EXPECT_TRUE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, SignBehind_NotInFov) {
+TEST_F(PerceptionFilterTest, SignBehind_NotInFov)
+{
   EgoVehicle ego(Coordinate{50.0, 5.0, 0.0}, 1U); // Heading = 0 (east)
 
   const bool in_fov = filter_.isInFieldOfView(ego, Position{0.0, 5.0});
@@ -49,7 +53,8 @@ TEST_F(PerceptionFilterTest, SignBehind_NotInFov) {
   EXPECT_FALSE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, SignAt60Degrees_InFov) {
+TEST_F(PerceptionFilterTest, SignAt60Degrees_InFov)
+{
   // FoV is 120°, so ±60° should be just inside
   EgoVehicle ego(Coordinate{0.0, 0.0, 0.0}, 1U);
 
@@ -63,7 +68,8 @@ TEST_F(PerceptionFilterTest, SignAt60Degrees_InFov) {
   EXPECT_TRUE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, SignAt61Degrees_NotInFov) {
+TEST_F(PerceptionFilterTest, SignAt61Degrees_NotInFov)
+{
   // FoV is 120°, so ±60° is the boundary
   EgoVehicle ego(Coordinate{0.0, 0.0, 0.0}, 1U);
 
@@ -77,7 +83,8 @@ TEST_F(PerceptionFilterTest, SignAt61Degrees_NotInFov) {
   EXPECT_FALSE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, SignAtNegativeAngle_InFov) {
+TEST_F(PerceptionFilterTest, SignAtNegativeAngle_InFov)
+{
   EgoVehicle ego(Coordinate{0.0, 0.0, 0.0}, 1U);
 
   // Position at -45° (below heading)
@@ -90,7 +97,8 @@ TEST_F(PerceptionFilterTest, SignAtNegativeAngle_InFov) {
   EXPECT_TRUE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, FovWithRotatedHeading) {
+TEST_F(PerceptionFilterTest, FovWithRotatedHeading)
+{
   // Vehicle heading north (90°)
   EgoVehicle ego(Coordinate{0.0, 0.0, M_PI / 2.0}, 1U);
 
@@ -100,7 +108,8 @@ TEST_F(PerceptionFilterTest, FovWithRotatedHeading) {
   EXPECT_TRUE(in_fov);
 }
 
-TEST_F(PerceptionFilterTest, FovWithRotatedHeading_SignEast) {
+TEST_F(PerceptionFilterTest, FovWithRotatedHeading_SignEast)
+{
   // Vehicle heading north (90°)
   EgoVehicle ego(Coordinate{0.0, 0.0, M_PI / 2.0}, 1U);
 
@@ -114,19 +123,22 @@ TEST_F(PerceptionFilterTest, FovWithRotatedHeading_SignEast) {
 // Lane Relevance Tests
 // =============================================================================
 
-TEST_F(PerceptionFilterTest, SameLane_IsRelevant) {
+TEST_F(PerceptionFilterTest, SameLane_IsRelevant)
+{
   const bool relevant = filter_.isLaneRelevant(1U, 1U, road_);
 
   EXPECT_TRUE(relevant);
 }
 
-TEST_F(PerceptionFilterTest, AdjacentLane_IsRelevant) {
+TEST_F(PerceptionFilterTest, AdjacentLane_IsRelevant)
+{
   const bool relevant = filter_.isLaneRelevant(1U, 2U, road_);
 
   EXPECT_TRUE(relevant);
 }
 
-TEST_F(PerceptionFilterTest, NonAdjacentLane_NotRelevant) {
+TEST_F(PerceptionFilterTest, NonAdjacentLane_NotRelevant)
+{
   const bool relevant = filter_.isLaneRelevant(1U, 3U, road_);
 
   EXPECT_FALSE(relevant);
@@ -136,14 +148,15 @@ TEST_F(PerceptionFilterTest, NonAdjacentLane_NotRelevant) {
 // Filter Integration Tests
 // =============================================================================
 
-TEST_F(PerceptionFilterTest, FilterReturnsSignsInFov) {
+TEST_F(PerceptionFilterTest, FilterReturnsSignsInFov)
+{
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
 
   std::vector<TrafficSign> signs;
   signs.push_back(
       TrafficSign::create(1U, TrafficSignType::Stop, Position{50.0, 5.0}, 1U));
-  signs.push_back(TrafficSign::create(2U, TrafficSignType::Yield,
-                                      Position{-50.0, 5.0}, 1U)); // Behind
+  signs.push_back(TrafficSign::create(
+      2U, TrafficSignType::Yield, Position{-50.0, 5.0}, 1U)); // Behind
 
   const auto results = filter_.filter(ego, signs, road_);
 
@@ -151,7 +164,8 @@ TEST_F(PerceptionFilterTest, FilterReturnsSignsInFov) {
   EXPECT_EQ(results[0].sign.getId(), 1U);
 }
 
-TEST_F(PerceptionFilterTest, FilterCalculatesDistance) {
+TEST_F(PerceptionFilterTest, FilterCalculatesDistance)
+{
   EgoVehicle ego(Coordinate{0.0, 0.0, 0.0}, 1U);
 
   std::vector<TrafficSign> signs;
@@ -164,13 +178,15 @@ TEST_F(PerceptionFilterTest, FilterCalculatesDistance) {
   EXPECT_NEAR(results[0].distance, 50.0, 0.001);
 }
 
-TEST_F(PerceptionFilterTest, FilterMarksRelevance) {
+TEST_F(PerceptionFilterTest, FilterMarksRelevance)
+{
   EgoVehicle ego(Coordinate{0.0, 7.5, 0.0}, 1U); // In lane 1
 
   std::vector<TrafficSign> signs;
-  signs.push_back(TrafficSign::create(1U, TrafficSignType::Stop,
-                                      Position{50.0, 7.5}, 1U)); // Same lane
-  signs.push_back(TrafficSign::create(2U, TrafficSignType::Yield,
+  signs.push_back(TrafficSign::create(
+      1U, TrafficSignType::Stop, Position{50.0, 7.5}, 1U)); // Same lane
+  signs.push_back(TrafficSign::create(2U,
+                                      TrafficSignType::Yield,
                                       Position{50.0, -2.5},
                                       3U)); // Lane 3 (not adjacent)
 
@@ -181,11 +197,15 @@ TEST_F(PerceptionFilterTest, FilterMarksRelevance) {
   // Find results by ID
   bool found_relevant = false;
   bool found_not_relevant = false;
-  for (const auto &r : results) {
-    if (r.sign.getId() == 1U) {
+  for (const auto& r : results)
+  {
+    if (r.sign.getId() == 1U)
+    {
       EXPECT_TRUE(r.is_relevant);
       found_relevant = true;
-    } else if (r.sign.getId() == 2U) {
+    }
+    else if (r.sign.getId() == 2U)
+    {
       EXPECT_FALSE(r.is_relevant);
       found_not_relevant = true;
     }
@@ -194,7 +214,8 @@ TEST_F(PerceptionFilterTest, FilterMarksRelevance) {
   EXPECT_TRUE(found_not_relevant);
 }
 
-TEST_F(PerceptionFilterTest, FilterSortsByDistance) {
+TEST_F(PerceptionFilterTest, FilterSortsByDistance)
+{
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
 
   std::vector<TrafficSign> signs;
@@ -202,8 +223,8 @@ TEST_F(PerceptionFilterTest, FilterSortsByDistance) {
       TrafficSign::create(1U, TrafficSignType::Stop, Position{80.0, 5.0}, 1U));
   signs.push_back(
       TrafficSign::create(2U, TrafficSignType::Yield, Position{30.0, 5.0}, 1U));
-  signs.push_back(TrafficSign::create(3U, TrafficSignType::SpeedLimit,
-                                      Position{50.0, 5.0}, 1U));
+  signs.push_back(TrafficSign::create(
+      3U, TrafficSignType::SpeedLimit, Position{50.0, 5.0}, 1U));
 
   const auto results = filter_.filter(ego, signs, road_);
 
@@ -213,15 +234,16 @@ TEST_F(PerceptionFilterTest, FilterSortsByDistance) {
   EXPECT_EQ(results[2].sign.getId(), 1U); // Farthest (80m)
 }
 
-TEST_F(PerceptionFilterTest, FilterExcludesSignsBeyondRange) {
+TEST_F(PerceptionFilterTest, FilterExcludesSignsBeyondRange)
+{
   PerceptionFilter short_range_filter(constants::kFieldOfViewRadians, 50.0);
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
 
   std::vector<TrafficSign> signs;
-  signs.push_back(TrafficSign::create(1U, TrafficSignType::Stop,
-                                      Position{30.0, 5.0}, 1U)); // In range
-  signs.push_back(TrafficSign::create(2U, TrafficSignType::Yield,
-                                      Position{80.0, 5.0}, 1U)); // Out of range
+  signs.push_back(TrafficSign::create(
+      1U, TrafficSignType::Stop, Position{30.0, 5.0}, 1U)); // In range
+  signs.push_back(TrafficSign::create(
+      2U, TrafficSignType::Yield, Position{80.0, 5.0}, 1U)); // Out of range
 
   const auto results = short_range_filter.filter(ego, signs, road_);
 
@@ -233,7 +255,8 @@ TEST_F(PerceptionFilterTest, FilterExcludesSignsBeyondRange) {
 // Edge Cases
 // =============================================================================
 
-TEST_F(PerceptionFilterTest, EmptySignList_ReturnsEmpty) {
+TEST_F(PerceptionFilterTest, EmptySignList_ReturnsEmpty)
+{
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
   std::vector<TrafficSign> empty_signs;
 
@@ -242,7 +265,8 @@ TEST_F(PerceptionFilterTest, EmptySignList_ReturnsEmpty) {
   EXPECT_TRUE(results.empty());
 }
 
-TEST_F(PerceptionFilterTest, SignAtOrigin) {
+TEST_F(PerceptionFilterTest, SignAtOrigin)
+{
   EgoVehicle ego(Coordinate{-10.0, 0.0, 0.0}, 2U); // Heading east
 
   std::vector<TrafficSign> signs;
@@ -255,18 +279,59 @@ TEST_F(PerceptionFilterTest, SignAtOrigin) {
   EXPECT_NEAR(results[0].distance, 10.0, 0.001);
 }
 
-TEST_F(PerceptionFilterTest, InvalidSign_Filtered) {
+TEST_F(PerceptionFilterTest, InvalidSign_Filtered)
+{
   EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
 
   std::vector<TrafficSign> signs;
   signs.push_back(TrafficSign{}); // Invalid (default constructed)
-  signs.push_back(TrafficSign::create(1U, TrafficSignType::Stop,
-                                      Position{50.0, 5.0}, 1U)); // Valid
+  signs.push_back(TrafficSign::create(
+      1U, TrafficSignType::Stop, Position{50.0, 5.0}, 1U)); // Valid
 
   const auto results = filter_.filter(ego, signs, road_);
 
   ASSERT_EQ(results.size(), 1U);
   EXPECT_EQ(results[0].sign.getId(), 1U);
+}
+
+// =============================================================================
+// Speed Limit Detection Tests
+// =============================================================================
+
+TEST_F(PerceptionFilterTest, DetectionResult_GetSpeedLimit_ReturnsValue)
+{
+  auto sign = TrafficSign::create(
+      1U, TrafficSignType::SpeedLimit, Position{50.0, 5.0}, 1U, 80U);
+  DetectionResult result{sign, 50.0, true, true};
+
+  ASSERT_TRUE(result.getSpeedLimit().has_value());
+  EXPECT_EQ(result.getSpeedLimit().value(), 80U);
+}
+
+TEST_F(PerceptionFilterTest,
+       DetectionResult_GetSpeedLimit_NonSpeedSign_ReturnsEmpty)
+{
+  auto sign =
+      TrafficSign::create(1U, TrafficSignType::Stop, Position{50.0, 5.0}, 1U);
+  DetectionResult result{sign, 50.0, true, true};
+
+  EXPECT_FALSE(result.getSpeedLimit().has_value());
+}
+
+TEST_F(PerceptionFilterTest, FilterSpeedLimitSign_WithValue)
+{
+  EgoVehicle ego(Coordinate{0.0, 5.0, 0.0}, 1U);
+
+  std::vector<TrafficSign> signs;
+  signs.push_back(TrafficSign::create(
+      1U, TrafficSignType::SpeedLimit, Position{50.0, 5.0}, 1U, 60U));
+
+  const auto results = filter_.filter(ego, signs, road_);
+
+  ASSERT_EQ(results.size(), 1U);
+  EXPECT_EQ(results[0].sign.getType(), TrafficSignType::SpeedLimit);
+  ASSERT_TRUE(results[0].getSpeedLimit().has_value());
+  EXPECT_EQ(results[0].getSpeedLimit().value(), 60U);
 }
 
 } // namespace

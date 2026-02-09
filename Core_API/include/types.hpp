@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <numbers>
 #include <optional>
+#include <string>
 
 namespace adas
 {
@@ -243,6 +244,20 @@ trafficSignTypeToString(TrafficSignType type) noexcept
   default:
     return "Unknown";
   }
+}
+
+//! @brief Format speed limit value for display
+//! @param speedLimit Optional speed limit value in km/h
+//! @return Formatted string (e.g., "80 km/h" or "--")
+//!
+[[nodiscard]] inline std::string
+formatSpeedLimit(std::optional<std::uint32_t> speedLimit) noexcept
+{
+  if (speedLimit.has_value())
+  {
+    return std::to_string(speedLimit.value()) + " km/h";
+  }
+  return "--";
 }
 
 } // namespace core

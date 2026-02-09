@@ -5,10 +5,12 @@ add_library(adas_ui STATIC
     include/perspective_view.hpp
     include/detection_overlay.hpp
     include/diagnostic_logs.hpp
+    include/speed_limit_widget.hpp
     src/main_window.cpp
     src/perspective_view.cpp
     src/detection_overlay.cpp
     src/diagnostic_logs.cpp
+    src/speed_limit_widget.cpp
 )
 
 target_include_directories(adas_ui PUBLIC

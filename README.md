@@ -22,9 +22,10 @@
 
 ### 🚙 NPC Vehicle Traffic
 *   **Randomized NPC Spawning**: NPC vehicles spawn at random positions on restart with collision-free placement.
-*   **Traffic Rule Compliance**: NPCs obey traffic lights and stop signs realistically.
+*   **Traffic Rule Compliance**: NPCs obey traffic lights and stop signs realistically (only when enabled).
 *   **NPC-to-NPC Collision Avoidance**: Intelligent following behavior prevents vehicle collisions.
-*   **Toggle Control**: Enable/disable NPC traffic via toolbar checkbox.
+*   **Pedestrian Avoidance**: NPCs stop for crossing pedestrians within 5m if pedestrian is in their lane.
+*   **Toggle Control**: Enable/disable NPC traffic via dropdown menu - NPCs appear immediately when enabled.
 
 ### 🚶 Pedestrian Simulation
 *   **Crossing Pedestrians**: Simulates pedestrians crossing roads at intersections.
@@ -40,6 +41,11 @@
     *   **Verified XML Parser**: Robust scenario loading with full error handling validation.
     *   **Right-Side Enforcement**: Logic to strictly obey signs on the right-hand side of the road.
     *   **Rolling Stop Behavior**: Simulation of realistic "rolling stop" maneuvers (0.5s wait) at stop signs.
+*   **Speed Limit Detection**:
+    *   **Lane-Specific Enforcement**: Only speed limits in the ego's exact lane are enforced.
+    *   **Post-Passing Activation**: Speed limit activates only after passing the sign.
+    *   **ACC Integration**: Detected limit automatically caps ACC target speed.
+    *   **Visual HUD Widget**: Circular sign-style display with active/inactive status.
 
 ### 👁️ Perception & Visualization
 *   **3D Perspective Rendering**: Real-time Qt6-based visualization of road geometry, lanes, and environmental elements.
@@ -49,6 +55,7 @@
 *   **Heads-Up Overlays**:
     *   **Stop Lines**: Dynamic rendering of stop lines at controlled intersections.
     *   **Detection Bounding Boxes**: Visual indicators for detected objects with relevance status.
+*   **Flexible Detection Panel**: Scrollable, dockable detection overlay that can be positioned anywhere.
 
 ### 🛠️ Professional Tooling & Quality
 *   **Hermetic Build System**: Powered by **Nix Flakes** for pixel-perfect build reproducibility.
@@ -147,8 +154,12 @@ ctest --test-dir build --output-on-failure
 *   **Start**: Begin the main simulation loop.
 *   **Stop**: Pause the simulation.
 *   **Reset**: Regenerate the world with new random NPC/pedestrian placements.
-*   **Enable NPCs**: Toggle NPC vehicle traffic on/off.
-*   **Enable Pedestrians**: Toggle pedestrian crossing simulation on/off.
+*   **Simulation Elements Dropdown**: Toggle visibility and behavior of:
+    *   **NPCs**: Enable/disable NPC vehicle traffic.
+    *   **Pedestrians**: Enable/disable pedestrian crossing simulation.
+    *   **Traffic Lights**: Enable/disable traffic light detection and visualization.
+    *   **Stop Signs**: Enable/disable stop sign detection and visualization.
+    *   **Stop Lines**: Enable/disable stop line rendering.
 *   **ACC (Adaptive Cruise Control)**:
     *   **Checkbox**: Enable/disable ACC system.
     *   **Mode Dropdown**: Select driving mode (Eco, Comfort, Sport).

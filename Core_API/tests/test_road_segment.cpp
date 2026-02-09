@@ -44,6 +44,24 @@ TEST_F(RoadSegmentTest, AddAndGetLaneBoundary)
   EXPECT_FALSE(b_missing.has_value());
 }
 
+TEST_F(RoadSegmentTest, LaneBoundaryContainsY)
+{
+  // Test containsY() used by NPC pedestrian avoidance logic
+  auto b1 = road_.getLaneBoundary(1U);
+  ASSERT_TRUE(b1.has_value());
+
+  // Center of lane 1 (0-4) should be contained
+  EXPECT_TRUE(b1->containsY(2.0));
+
+  // Edges should be contained (inclusive)
+  EXPECT_TRUE(b1->containsY(0.0));
+  EXPECT_TRUE(b1->containsY(4.0));
+
+  // Outside lane should not be contained
+  EXPECT_FALSE(b1->containsY(-1.0));
+  EXPECT_FALSE(b1->containsY(5.0));
+}
+
 TEST_F(RoadSegmentTest, OverwriteLane)
 {
   road_.addLane(1U, LaneBoundary(5.0, 0.0)); // Change width
