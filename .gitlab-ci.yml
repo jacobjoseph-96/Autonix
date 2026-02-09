@@ -36,7 +36,7 @@ coverage_job:
   stage: coverage
   needs: []  # Do not download release build artifacts
   script:
-    - nix develop --extra-experimental-features "nix-command flakes" --command ./generate_codebeamer_artifacts.sh
+    - nix develop --extra-experimental-features "nix-command flakes" --command bash ./generate_codebeamer_artifacts.sh
   artifacts:
     when: always
     paths:
