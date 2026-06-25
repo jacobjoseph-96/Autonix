@@ -8,6 +8,10 @@
 
 **Autonix** is a high-fidelity **Advanced Driver Assistance System (ADAS)** simulation environment. Built with **Modern C++20** and **Qt6**, it leverages **NixOS** for a hermetic, reproducible development ecosystem. The project is engineered to strictly adhere to safety-critical standards, including principles from **MISRA C++** and **AUTOSAR**, ensuring robust and reliable simulation capabilities.
 
+## 🖼️ Output
+
+![Autonix Simulation Output](Autonix-output.png)
+
 ## 🚀 Key Features
 
 ### 🚗 Vehicle Dynamics & Control
